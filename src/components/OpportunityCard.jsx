@@ -18,7 +18,8 @@ function companyName(opportunity) {
   return opportunity.company || opportunity.companyName || opportunity.organisation || 'RicNic'
 }
 
-export default function OpportunityCard({ opportunity, onEdit, onApprove }) {
+export default function OpportunityCard({ opportunity, onEdit, onApprove, primaryLabel }) {
+  const isScheduled = (opportunity.status || '').toLowerCase().includes('schedule')
   return (
     <article className="card review-card">
       <div className="card-image" role="presentation">
@@ -39,7 +40,7 @@ export default function OpportunityCard({ opportunity, onEdit, onApprove }) {
 
         <div className="title-row">
           <p className="card-category">{opportunity.opportunityType || 'Opportunity'}</p>
-          <span className="review-state">In Review</span>
+          <span className="review-state">{isScheduled ? `Scheduled: ${opportunity.schedulePost || 'TBC'}` : 'In Review'}</span>
         </div>
 
         <p className="card-description">{shortText(opportunity.draftedContent)}</p>
@@ -57,7 +58,7 @@ export default function OpportunityCard({ opportunity, onEdit, onApprove }) {
 
         <div className="card-actions">
           <button className="mini edit" onClick={onEdit}>Edit</button>
-          <button className="mini approve" onClick={onApprove}>Approve</button>
+          <button className="mini approve" onClick={onApprove}>{primaryLabel || 'Approve'}</button>
           <button className="icon-action red" aria-label="Reject">↶</button>
           <button className="icon-action green" aria-label="Restore">↷</button>
         </div>

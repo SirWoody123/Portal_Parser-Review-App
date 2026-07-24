@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import OpportunityList from './components/OpportunityList'
 import ReviewDetailPanel from './components/ReviewDetailPanel'
 import './App.css'
@@ -6,6 +6,196 @@ import './App.css'
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
 const PAGES = ['Scouted', 'Published', 'Schedule']
+const SCHEDULE_STORAGE_KEY = 'review-app-scheduled-map'
+
+function toISODate(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function todayDate() {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+}
+
+function parseDateOnly(raw) {
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+  const dt = new Date(raw)
+  if (Number.isNaN(dt.getTime())) return null
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
+}
+
+function dayDiff(a, b) {
+  const ms = 1000 * 60 * 60 * 24
+  return Math.round((a.getTime() - b.getTime()) / ms)
+}
+
+function scheduleRule(deadlineRaw) {
+  const today = todayDate()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const deadline = parseDateOnly(deadlineRaw)
+
+  if (!deadline) {
+    return {
+      kind: 'free',
+      minDate: toISODate(today),
+      maxDate: '',
+      note: 'No deadline found, schedule date is flexible.'
+    }
+  }
+
+  const diff = dayDiff(deadline, today)
+  if (diff <= 0) {
+    return {
+      kind: 'today-only',
+      minDate: toISODate(today),
+      maxDate: toISODate(today),
+      note: 'Deadline is today or overdue, schedule must be today.'
+    }
+  }
+
+  if (diff === 1) {
+    return {
+      kind: 'today-or-tomorrow',
+      minDate: toISODate(today),
+      maxDate: toISODate(tomorrow),
+      note: 'Deadline is tomorrow, schedule must be today or tomorrow.'
+    }
+  }
+
+  return {
+    kind: 'free',
+    minDate: toISODate(today),
+    maxDate: '',
+    note: 'Deadline is beyond tomorrow, schedule date is flexible.'
+  }
+}
+
+function loadScheduledMap() {
+  try {
+    const raw = localStorage.getItem(SCHEDULE_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveScheduledMap(map) {
+  localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(map))
+}
+
+function buildScheduleCounts(rows) {
+  return rows.reduce((acc, opp) => {
+    if ((opp.status || '').toLowerCase() !== 'scheduled') return acc
+    if (!opp.schedulePost) return acc
+    acc[opp.schedulePost] = (acc[opp.schedulePost] || 0) + 1
+    return acc
+  }, {})
+}
+
+function computeSuggestedScheduleDate(opportunity, allRows) {
+  const today = todayDate()
+  const counts = buildScheduleCounts(allRows)
+  const rule = scheduleRule(opportunity.applicationDeadline)
+
+  if (rule.kind === 'today-only') {
+    return rule.minDate
+  }
+
+  if (rule.kind === 'today-or-tomorrow') {
+    const dayA = rule.minDate
+    const dayB = rule.maxDate
+    const scoreA = counts[dayA] || 0
+    const scoreB = counts[dayB] || 0
+    return scoreA <= scoreB ? dayA : dayB
+  }
+
+  const deadline = parseDateOnly(opportunity.applicationDeadline)
+  const start = new Date(today)
+  const end = deadline && dayDiff(deadline, today) > 1
+    ? deadline
+    : new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30)
+
+  let cursor = new Date(start)
+  let bestDate = toISODate(start)
+  let bestScore = Number.POSITIVE_INFINITY
+
+  while (cursor <= end) {
+    const key = toISODate(cursor)
+    const load = counts[key] || 0
+    const distance = dayDiff(cursor, today)
+    const score = load * 100 + distance
+    if (score < bestScore) {
+      bestScore = score
+      bestDate = key
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return bestDate
+}
+
+function validateScheduleDate(deadlineRaw, scheduleRaw) {
+  if (!scheduleRaw) {
+    return { ok: true, message: '' }
+  }
+
+  const rule = scheduleRule(deadlineRaw)
+  if (rule.kind === 'free') return { ok: true, message: '' }
+  if (rule.kind === 'today-only' && scheduleRaw !== rule.minDate) {
+    return { ok: false, message: 'Deadline is today. Schedule date must be today.' }
+  }
+  if (rule.kind === 'today-or-tomorrow') {
+    if (scheduleRaw !== rule.minDate && scheduleRaw !== rule.maxDate) {
+      return { ok: false, message: 'Deadline is tomorrow. Schedule date must be today or tomorrow.' }
+    }
+  }
+  return { ok: true, message: '' }
+}
+
+function buildCalendarDays(rows) {
+  const scheduled = rows.filter(opp => (opp.status || '').toLowerCase() === 'scheduled' && opp.schedulePost)
+  const counts = buildScheduleCounts(rows)
+  const today = todayDate()
+  const base = scheduled.length > 0 ? parseDateOnly(scheduled[0].schedulePost) || today : today
+  const start = new Date(base.getFullYear(), base.getMonth(), 1)
+  const end = new Date(base.getFullYear(), base.getMonth() + 1, 0)
+  const cells = []
+
+  for (let i = 0; i < start.getDay(); i += 1) {
+    cells.push({ empty: true, key: `empty-start-${i}` })
+  }
+
+  for (let day = 1; day <= end.getDate(); day += 1) {
+    const dt = new Date(base.getFullYear(), base.getMonth(), day)
+    const key = toISODate(dt)
+    const count = counts[key] || 0
+    let density = 'low'
+    if (count >= 30) density = 'high'
+    else if (count >= 20) density = 'mid'
+    cells.push({
+      key,
+      day,
+      count,
+      density,
+      empty: false
+    })
+  }
+
+  return {
+    monthLabel: base.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+    cells
+  }
+}
 
 function searchMatch(opp, term) {
   if (!term) return true
@@ -32,6 +222,7 @@ function App() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH)
+  const dueProcessingRef = useRef(false)
 
   useEffect(() => {
     fetchOpportunities()
@@ -45,7 +236,12 @@ function App() {
       if (!res.ok) throw new Error('Failed to fetch opportunities')
       const data = await res.json()
       const rows = data.opportunities || []
-      setOpportunities(rows)
+      const scheduledMap = loadScheduledMap()
+      const hydrated = rows.map(row => {
+        const localScheduled = scheduledMap[row.rowIndex]
+        return localScheduled ? { ...row, ...localScheduled } : row
+      })
+      setOpportunities(hydrated)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -74,14 +270,78 @@ function App() {
   }
 
   const handleSaveDraft = (rowIndex, updatedFields) => {
-    setOpportunities(prev =>
-      prev.map(opp =>
-        opp.rowIndex === rowIndex
-          ? { ...opp, ...updatedFields }
-          : opp
-      )
-    )
+    const check = validateScheduleDate(updatedFields.applicationDeadline, updatedFields.schedulePost)
+    if (!check.ok) {
+      setError(check.message)
+      return { ok: false, message: check.message }
+    }
+
+    setError(null)
+    setOpportunities(prev => {
+      const next = prev.map(opp => {
+        if (opp.rowIndex !== rowIndex) return opp
+        const merged = { ...opp, ...updatedFields }
+        if (merged.schedulePost) merged.status = 'scheduled'
+        return merged
+      })
+
+      const scheduledMap = loadScheduledMap()
+      const edited = next.find(opp => opp.rowIndex === rowIndex)
+      if (edited?.schedulePost) {
+        scheduledMap[rowIndex] = {
+          schedulePost: edited.schedulePost,
+          status: 'scheduled',
+          demographic: edited.demographic,
+          industryTags: edited.industryTags,
+          keywords: edited.keywords,
+          partnerAffiliation: edited.partnerAffiliation,
+          remote: edited.remote,
+          ukWide: edited.ukWide,
+          expiredDate: edited.expiredDate
+        }
+      } else {
+        delete scheduledMap[rowIndex]
+      }
+      saveScheduledMap(scheduledMap)
+      return next
+    })
+
+    return { ok: true }
   }
+
+  const publishScheduledNow = opp => {
+    const scheduledMap = loadScheduledMap()
+    delete scheduledMap[opp.rowIndex]
+    saveScheduledMap(scheduledMap)
+    handlePublish(opp.rowIndex, opp)
+  }
+
+  useEffect(() => {
+    if (dueProcessingRef.current) return
+    const due = opportunities.filter(opp => {
+      if ((opp.status || '').toLowerCase() !== 'scheduled') return false
+      if (!opp.schedulePost) return false
+      const scheduleDt = parseDateOnly(opp.schedulePost)
+      if (!scheduleDt) return false
+      return dayDiff(scheduleDt, todayDate()) <= 0
+    })
+
+    if (due.length === 0) return
+    dueProcessingRef.current = true
+
+    ;(async () => {
+      try {
+        for (const opp of due) {
+          await handlePublish(opp.rowIndex, opp)
+          const scheduledMap = loadScheduledMap()
+          delete scheduledMap[opp.rowIndex]
+          saveScheduledMap(scheduledMap)
+        }
+      } finally {
+        dueProcessingRef.current = false
+      }
+    })()
+  }, [opportunities])
 
   const types = [
     'all',
@@ -101,6 +361,14 @@ function App() {
   })
 
   const visible = filtered.slice(0, visibleCount)
+
+  const calendar = useMemo(() => buildCalendarDays(opportunities), [opportunities])
+  const editingSuggestion = useMemo(() => {
+    if (!editing) return ''
+    if (editing.schedulePost) return editing.schedulePost
+    return computeSuggestedScheduleDate(editing, opportunities)
+  }, [editing, opportunities])
+  const editingRule = useMemo(() => scheduleRule(editing?.applicationDeadline), [editing])
 
   const hasMore = filtered.length > visible.length
 
@@ -158,7 +426,14 @@ function App() {
               <OpportunityList
                 opportunities={visible}
                 onEdit={opp => setEditing(opp)}
-                onApprove={opp => handlePublish(opp.rowIndex, opp)}
+                onApprove={opp => {
+                  if (page === 'Schedule') {
+                    publishScheduledNow(opp)
+                  } else {
+                    handlePublish(opp.rowIndex, opp)
+                  }
+                }}
+                primaryLabel={page === 'Schedule' ? 'Publish now' : 'Approve'}
               />
               {hasMore && (
                 <div className="show-more-row">
@@ -169,6 +444,29 @@ function App() {
               )}
             </>
           )}
+
+          {page === 'Schedule' && (
+            <section className="schedule-calendar">
+              <div className="calendar-header">Schedule Calendar: {calendar.monthLabel}</div>
+              <div className="calendar-grid">
+                {calendar.cells.map(cell =>
+                  cell.empty ? (
+                    <div key={cell.key} className="calendar-cell empty" />
+                  ) : (
+                    <div key={cell.key} className={`calendar-cell ${cell.density}`}>
+                      <span className="calendar-day">{cell.day}</span>
+                      <span className="calendar-count">{cell.count}</span>
+                    </div>
+                  )
+                )}
+              </div>
+              <div className="calendar-legend">
+                <span><i className="dot low" /> below 20</span>
+                <span><i className="dot mid" /> 20 to 29</span>
+                <span><i className="dot high" /> 30 and above</span>
+              </div>
+            </section>
+          )}
         </section>
       </main>
 
@@ -176,6 +474,8 @@ function App() {
         <ReviewDetailPanel
           opportunity={editing}
           onSaveDraft={handleSaveDraft}
+          suggestedScheduleDate={editingSuggestion}
+          scheduleRuleInfo={editingRule}
           onClose={() => setEditing(null)}
         />
       )}

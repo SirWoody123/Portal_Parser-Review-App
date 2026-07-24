@@ -179,15 +179,22 @@ function selectedTagSummary(edited) {
   ]
 }
 
-export default function ReviewDetailPanel({ opportunity, onSaveDraft, onClose }) {
+export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedScheduleDate, scheduleRuleInfo, onClose }) {
   const [edited, setEdited] = useState(() => normalizeOpportunityForEditor(opportunity))
   const [showTagsModal, setShowTagsModal] = useState(false)
   const [activeSection, setActiveSection] = useState('Industry')
   const [keywordInput, setKeywordInput] = useState('')
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
-    setEdited(normalizeOpportunityForEditor(opportunity))
-  }, [opportunity])
+    const normalized = normalizeOpportunityForEditor(opportunity)
+    if (!normalized.schedulePost && suggestedScheduleDate) {
+      normalized.schedulePost = suggestedScheduleDate
+      normalized.status = 'scheduled'
+    }
+    setEdited(normalized)
+    setSaveError('')
+  }, [opportunity, suggestedScheduleDate])
 
   const tags = useMemo(() => selectedTagSummary(edited), [edited])
 
@@ -239,7 +246,11 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, onClose })
   }
 
   const handleSave = () => {
-    onSaveDraft(edited.rowIndex, edited)
+    const result = onSaveDraft(edited.rowIndex, edited)
+    if (result?.ok === false) {
+      setSaveError(result.message || 'Unable to save this schedule.')
+      return
+    }
     onClose()
   }
 
@@ -428,6 +439,20 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, onClose })
               <span className="field-help">Let us know if this content should expire. If not, it'll stay on the ERIC app indefinitely.</span>
             </label>
 
+            <label>
+              Schedule post
+              <input
+                type="date"
+                value={normalizeDateInput(edited.schedulePost)}
+                min={scheduleRuleInfo?.minDate || ''}
+                max={scheduleRuleInfo?.maxDate || ''}
+                onChange={e => changeField('schedulePost', e.target.value)}
+              />
+              <span className="field-help">{scheduleRuleInfo?.note || 'Select when this should move to portal publishing.'}</span>
+            </label>
+
+            {saveError && <div className="inline-error">{saveError}</div>}
+
             <div className="tags-block">
               <p className="tag-heading">Please add some relevant hashtags to help our community find this video:</p>
               <button className="add-tags-btn" onClick={() => setShowTagsModal(true)}>Add Tags</button>
@@ -456,10 +481,6 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, onClose })
               <label>
                 Select company
                 <input value={edited.company || edited.companyName || 'RicNic'} onChange={e => changeField('company', e.target.value)} />
-              </label>
-              <label>
-                Schedule post
-                <input type="date" value={normalizeDateInput(edited.applicationDeadline)} onChange={e => changeField('applicationDeadline', e.target.value)} />
               </label>
               <label>
                 Location
