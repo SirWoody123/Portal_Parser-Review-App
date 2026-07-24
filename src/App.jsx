@@ -5,6 +5,7 @@ import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
+const PAGES = ['Scouted', 'Published', 'Schedule']
 
 function searchMatch(opp, term) {
   if (!term) return true
@@ -27,6 +28,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(null)
+  const [page, setPage] = useState('Scouted')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH)
@@ -86,7 +88,14 @@ function App() {
     ...new Set(opportunities.map(o => o.opportunityType).filter(Boolean))
   ]
 
-  const filtered = opportunities.filter(opp => {
+  const pageFiltered = opportunities.filter(opp => {
+    const status = (opp.status || opp.originalStatus || '').toLowerCase()
+    if (page === 'Published') return status.includes('published')
+    if (page === 'Schedule') return status.includes('schedule') || status.includes('scheduled')
+    return !status || status.includes('scouted') || status.includes('review') || status.includes('ready')
+  })
+
+  const filtered = pageFiltered.filter(opp => {
     const matchesType = typeFilter === 'all' || opp.opportunityType === typeFilter
     return matchesType && searchMatch(opp, search)
   })
@@ -97,37 +106,23 @@ function App() {
 
   useEffect(() => {
     setVisibleCount(ITEMS_PER_BATCH)
-  }, [search, typeFilter])
+  }, [search, typeFilter, page])
 
   return (
     <div className="portal-shell">
-      <aside className="portal-sidebar">
-        <div className="brand-lockup">
-          <h1>ERIC</h1>
-        </div>
-        <nav>
-          <button className="nav-item">Profile</button>
-          <button className="nav-item">All posts</button>
-          <button className="nav-item">All companies</button>
-          <button className="nav-item is-active">To review</button>
-          <button className="nav-item">Data dashboard</button>
-          <button className="nav-item section-label" disabled>ACCOUNT</button>
-          <button className="nav-item">Users</button>
-          <button className="nav-item">Settings</button>
-          <button className="nav-item">Support</button>
-          <button className="nav-item">Log out</button>
-        </nav>
-        <div className="verified-pill">Verified</div>
-      </aside>
-
       <main className="portal-content-wrap portal-content-only">
         <section className="portal-content review-feed">
           <header className="review-top-row">
-            <div className="tabs">
-              <button className="tab is-active">Content</button>
-              <button className="tab">Profiles</button>
-              <button className="tab">Scouted</button>
-              <button className="tab">Upgrade</button>
+            <div className="page-tabs">
+              {PAGES.map(label => (
+                <button
+                  key={label}
+                  className={`page-tab ${page === label ? 'is-active' : ''}`}
+                  onClick={() => setPage(label)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             <div className="filter-row compact">
@@ -148,7 +143,7 @@ function App() {
             </div>
           </header>
 
-          <div className="queue-count">{filtered.length} in queue</div>
+          <div className="queue-count">{filtered.length} in {page.toLowerCase()}</div>
 
           {error && <div className="error">Error: {error}</div>}
 
@@ -156,8 +151,8 @@ function App() {
             <div className="loading spinner-wrap" role="status" aria-live="polite">
               <span className="spinner" />
             </div>
-          ) : opportunities.length === 0 ? (
-            <div className="empty">No opportunities to review</div>
+          ) : filtered.length === 0 ? (
+            <div className="empty">No opportunities in {page}.</div>
           ) : (
             <>
               <OpportunityList
@@ -181,7 +176,6 @@ function App() {
         <ReviewDetailPanel
           opportunity={editing}
           onSaveDraft={handleSaveDraft}
-          onPublish={handlePublish}
           onClose={() => setEditing(null)}
         />
       )}
