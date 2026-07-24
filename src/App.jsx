@@ -31,6 +31,14 @@ function parseDateOnly(raw) {
   return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
 }
 
+function monthStartDate(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+function addMonths(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1)
+}
+
 function dayDiff(a, b) {
   const ms = 1000 * 60 * 60 * 24
   return Math.round((a.getTime() - b.getTime()) / ms)
@@ -162,39 +170,44 @@ function validateScheduleDate(deadlineRaw, scheduleRaw) {
   return { ok: true, message: '' }
 }
 
-function buildCalendarDays(rows) {
-  const scheduled = rows.filter(opp => (opp.status || '').toLowerCase() === 'scheduled' && opp.schedulePost)
+function buildCalendarMonths(rows, startMonth, span = 12) {
   const counts = buildScheduleCounts(rows)
-  const today = todayDate()
-  const base = scheduled.length > 0 ? parseDateOnly(scheduled[0].schedulePost) || today : today
-  const start = new Date(base.getFullYear(), base.getMonth(), 1)
-  const end = new Date(base.getFullYear(), base.getMonth() + 1, 0)
-  const cells = []
+  const months = []
 
-  for (let i = 0; i < start.getDay(); i += 1) {
-    cells.push({ empty: true, key: `empty-start-${i}` })
-  }
+  for (let index = 0; index < span; index += 1) {
+    const base = addMonths(startMonth, index)
+    const start = monthStartDate(base)
+    const end = new Date(base.getFullYear(), base.getMonth() + 1, 0)
+    const cells = []
 
-  for (let day = 1; day <= end.getDate(); day += 1) {
-    const dt = new Date(base.getFullYear(), base.getMonth(), day)
-    const key = toISODate(dt)
-    const count = counts[key] || 0
-    let density = 'low'
-    if (count >= 30) density = 'high'
-    else if (count >= 20) density = 'mid'
-    cells.push({
-      key,
-      day,
-      count,
-      density,
-      empty: false
+    for (let i = 0; i < start.getDay(); i += 1) {
+      cells.push({ empty: true, key: `${toISODate(start)}-empty-start-${i}` })
+    }
+
+    for (let day = 1; day <= end.getDate(); day += 1) {
+      const dt = new Date(base.getFullYear(), base.getMonth(), day)
+      const key = toISODate(dt)
+      const count = counts[key] || 0
+      let density = 'low'
+      if (count >= 30) density = 'high'
+      else if (count >= 20) density = 'mid'
+      cells.push({
+        key,
+        day,
+        count,
+        density,
+        empty: false
+      })
+    }
+
+    months.push({
+      key: toISODate(start),
+      monthLabel: base.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+      cells
     })
   }
 
-  return {
-    monthLabel: base.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
-    cells
-  }
+  return months
 }
 
 function searchMatch(opp, term) {
@@ -222,6 +235,11 @@ function App() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH)
+  const [calendarStart, setCalendarStart] = useState(() => {
+    const now = todayDate()
+    return toISODate(new Date(now.getFullYear(), now.getMonth(), 1))
+  })
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const dueProcessingRef = useRef(false)
 
   useEffect(() => {
@@ -362,7 +380,25 @@ function App() {
 
   const visible = filtered.slice(0, visibleCount)
 
-  const calendar = useMemo(() => buildCalendarDays(opportunities), [opportunities])
+  const calendarMonths = useMemo(() => {
+    const start = parseDateOnly(calendarStart) || monthStartDate(todayDate())
+    return buildCalendarMonths(opportunities, monthStartDate(start), 12)
+  }, [opportunities, calendarStart])
+
+  const scheduledByDate = useMemo(
+    () => opportunities.filter(opp => (opp.status || '').toLowerCase() === 'scheduled' && opp.schedulePost),
+    [opportunities]
+  )
+
+  const selectedDayOpps = useMemo(() => {
+    if (!selectedCalendarDate) return []
+    return scheduledByDate.filter(opp => opp.schedulePost === selectedCalendarDate)
+  }, [scheduledByDate, selectedCalendarDate])
+
+  const jumpCalendar = months => {
+    const start = parseDateOnly(calendarStart) || monthStartDate(todayDate())
+    setCalendarStart(toISODate(addMonths(start, months)))
+  }
   const editingSuggestion = useMemo(() => {
     if (!editing) return ''
     if (editing.schedulePost) return editing.schedulePost
@@ -447,24 +483,66 @@ function App() {
 
           {page === 'Schedule' && (
             <section className="schedule-calendar">
-              <div className="calendar-header">Schedule Calendar: {calendar.monthLabel}</div>
-              <div className="calendar-grid">
-                {calendar.cells.map(cell =>
-                  cell.empty ? (
-                    <div key={cell.key} className="calendar-cell empty" />
-                  ) : (
-                    <div key={cell.key} className={`calendar-cell ${cell.density}`}>
-                      <span className="calendar-day">{cell.day}</span>
-                      <span className="calendar-count">{cell.count}</span>
-                    </div>
-                  )
-                )}
+              <div className="calendar-toolbar">
+                <div className="calendar-header">Schedule Calendar: 12 month view</div>
+                <div className="calendar-nav">
+                  <button className="show-more" onClick={() => jumpCalendar(-12)}>Previous 12</button>
+                  <button className="show-more" onClick={() => jumpCalendar(12)}>Next 12</button>
+                </div>
               </div>
+
+              <div className="calendar-months-grid">
+                {calendarMonths.map(month => (
+                  <article key={month.key} className="calendar-month-card">
+                    <div className="month-label">{month.monthLabel}</div>
+                    <div className="calendar-grid">
+                      {month.cells.map(cell =>
+                        cell.empty ? (
+                          <div key={cell.key} className="calendar-cell empty" />
+                        ) : (
+                          <button
+                            key={cell.key}
+                            className={`calendar-cell ${cell.density} ${selectedCalendarDate === cell.key ? 'selected' : ''}`}
+                            onClick={() => setSelectedCalendarDate(cell.key)}
+                          >
+                            <span className="calendar-day">{cell.day}</span>
+                            <span className="calendar-count">{cell.count}</span>
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
               <div className="calendar-legend">
                 <span><i className="dot low" /> below 20</span>
                 <span><i className="dot mid" /> 20 to 29</span>
                 <span><i className="dot high" /> 30 and above</span>
               </div>
+
+              {selectedCalendarDate && (
+                <section className="day-schedule-menu">
+                  <div className="day-schedule-title">
+                    Scheduled for {selectedCalendarDate} ({selectedDayOpps.length})
+                  </div>
+                  {selectedDayOpps.length === 0 ? (
+                    <div className="empty">No opportunities scheduled on this day.</div>
+                  ) : (
+                    <div className="day-schedule-list">
+                      {selectedDayOpps.map(opp => (
+                        <article key={`day-${opp.rowIndex}`} className="day-schedule-item">
+                          <div>
+                            <div className="day-item-title">{opp.title || 'Untitled opportunity'}</div>
+                            <div className="day-item-meta">{opp.opportunityType || 'Opportunity'} • {opp.location || 'TBC'}</div>
+                          </div>
+                          <button className="mini edit" onClick={() => setEditing(opp)}>Edit</button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
             </section>
           )}
         </section>

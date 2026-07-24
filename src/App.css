@@ -738,9 +738,39 @@ strong {
   padding: 14px;
 }
 
+.calendar-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.calendar-nav {
+  display: flex;
+  gap: 8px;
+}
+
 .calendar-header {
   font-weight: 700;
-  margin-bottom: 10px;
+}
+
+.calendar-months-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.calendar-month-card {
+  border: 1px solid #eceef3;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.month-label {
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #2c3343;
 }
 
 .calendar-grid {
@@ -756,6 +786,9 @@ strong {
   border: 1px solid #e7e9f0;
   display: grid;
   align-content: space-between;
+  background: #fff;
+  width: 100%;
+  text-align: left;
 }
 
 .calendar-cell.empty {
@@ -777,6 +810,10 @@ strong {
 .calendar-cell.high {
   background: #e8fbef;
   border-color: #7fd49b;
+}
+
+.calendar-cell.selected {
+  box-shadow: inset 0 0 0 2px #111827;
 }
 
 .calendar-day {
@@ -815,4 +852,41 @@ strong {
 
 .calendar-legend .dot.high {
   background: #26a85f;
+}
+
+.day-schedule-menu {
+  margin-top: 16px;
+  border-top: 1px solid #eceef3;
+  padding-top: 12px;
+}
+
+.day-schedule-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.day-schedule-list {
+  display: grid;
+  gap: 8px;
+}
+
+.day-schedule-item {
+  border: 1px solid #e7e9f0;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.day-item-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.day-item-meta {
+  color: #667085;
+  font-size: 12px;
+  margin-top: 2px;
 }
