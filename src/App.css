@@ -372,16 +372,14 @@ strong {
   inset: 0;
   background: rgba(8, 10, 15, 0.45);
   z-index: 100;
-  padding: 10vh 8vw;
+  padding: 2vh 2vw;
 }
 
-.editor-surface {
+.editor-form-surface {
   position: relative;
   background: #fff;
   border-radius: 12px;
-  height: 80vh;
-  display: grid;
-  grid-template-columns: 300px minmax(620px, 1fr);
+  height: 96vh;
   overflow: hidden;
 }
 
@@ -395,6 +393,163 @@ strong {
   line-height: 1;
   color: #8f96a4;
   cursor: pointer;
+  z-index: 3;
+}
+
+.editor-form-grid {
+  display: grid;
+  grid-template-columns: minmax(640px, 1fr) 320px;
+  height: 100%;
+}
+
+.editor-main-form {
+  padding: 62px 28px 22px;
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+}
+
+.editor-main-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #232a39;
+}
+
+.editor-main-form input,
+.editor-main-form select,
+.editor-main-form textarea,
+.editor-rail input,
+.audience-grid select,
+.keyword-input {
+  border: 1px solid #d6dae4;
+  border-radius: 8px;
+  min-height: 42px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.editor-main-form textarea {
+  resize: vertical;
+}
+
+.admin-row {
+  background: #101826;
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.admin-row label {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-help {
+  color: #606778;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tags-block {
+  border: 1px solid #eceef4;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.tag-heading {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.add-tags-btn {
+  border: 0;
+  border-radius: 999px;
+  background: #000;
+  color: #fff;
+  height: 40px;
+  padding: 0 20px;
+  font-size: 24px;
+  transform: scale(0.5);
+  transform-origin: left center;
+  width: 170px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.placeholder {
+  color: #8f96a4;
+  font-size: 14px;
+}
+
+.modal-title {
+  margin: 0 0 24px;
+  font-family: Avenir, 'Avenir Next', 'Segoe UI', sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+  color: #2a2e39;
+}
+
+.editor-rail {
+  background: #fafbfe;
+  border-left: 1px solid #eceef3;
+  padding: 68px 18px 22px;
+  overflow: auto;
+}
+
+.rail-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 3px 12px rgba(15, 20, 31, 0.1);
+  padding: 18px;
+  margin-bottom: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.rail-card p {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.rail-card label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+  color: #2a3040;
+  font-size: 14px;
+}
+
+.tags-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.tags-modal-surface {
+  background: #fff;
+  width: 80%;
+  height: 82%;
+  border-radius: 12px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 300px minmax(620px, 1fr);
+  overflow: hidden;
 }
 
 .editor-nav {
@@ -426,17 +581,9 @@ strong {
   box-shadow: inset 0 0 0 2px #1f89ff;
 }
 
-.editor-main {
+.editor-main.tags-main {
   padding: 62px 34px 20px;
   overflow: auto;
-}
-
-.modal-title {
-  margin: 0 0 24px;
-  font-family: Avenir, 'Avenir Next', 'Segoe UI', sans-serif;
-  font-size: 18px;
-  line-height: 1.4;
-  color: #2a2e39;
 }
 
 .industry-grid {
@@ -492,11 +639,6 @@ strong {
   margin-bottom: 8px;
 }
 
-.placeholder {
-  color: #8f96a4;
-  font-size: 14px;
-}
-
 .selected-pill {
   background: #f2f4f8;
   border-radius: 8px;
@@ -530,14 +672,7 @@ strong {
   border-color: #000;
 }
 
-.keyword-input,
-.audience-grid select {
-  width: 100%;
-  border: 1px solid #d6dae4;
-  min-height: 42px;
-  border-radius: 0;
-  padding: 8px 12px;
-  font-size: 16px;
+.keyword-input {
   margin-bottom: 16px;
 }
 
