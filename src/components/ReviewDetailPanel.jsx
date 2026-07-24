@@ -71,24 +71,80 @@ function firstAvailable(obj, keys) {
   return undefined
 }
 
+function parseDemographicsText(value) {
+  if (!value || typeof value !== 'string') {
+    return {
+      age: [],
+      genderSexualPreference: [],
+      ethnicity: [],
+      disability: [],
+      lowerSocioEconomicBackground: [],
+      remote: undefined,
+      ukWide: undefined
+    }
+  }
+
+  const parsed = {
+    age: [],
+    genderSexualPreference: [],
+    ethnicity: [],
+    disability: [],
+    lowerSocioEconomicBackground: [],
+    remote: undefined,
+    ukWide: undefined
+  }
+
+  const lines = value
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  for (const line of lines) {
+    const [rawKey, ...rest] = line.split(':')
+    if (!rawKey || rest.length === 0) continue
+    const key = rawKey.trim().toLowerCase()
+    const rawVal = rest.join(':').trim()
+    const arr = toArray(rawVal)
+
+    if (key === 'age') parsed.age = arr
+    if (key === 'gender' || key === 'gender & sexual preference') parsed.genderSexualPreference = arr
+    if (key === 'ethnicity') parsed.ethnicity = arr
+    if (key === 'disability') parsed.disability = arr
+    if (key === 'economic background' || key === 'lower socio economic background') {
+      parsed.lowerSocioEconomicBackground = arr
+    }
+    if (key === 'remote') parsed.remote = toBool(rawVal)
+    if (key === 'uk wide' || key === 'uk-wide') parsed.ukWide = toBool(rawVal)
+  }
+
+  return parsed
+}
+
 function normalizeOpportunityForEditor(raw) {
   const demographic = raw.demographic || {}
+  const fromSheetBlock = parseDemographicsText(raw.demographics)
   return {
     ...raw,
-    remote: toBool(firstAvailable(raw, ['remote', 'isRemote'])),
-    ukWide: toBool(firstAvailable(raw, ['ukWide', 'isUkWide', 'uk_wide'])),
+    remote: toBool(firstAvailable(raw, ['remote', 'isRemote']) ?? fromSheetBlock.remote),
+    ukWide: toBool(firstAvailable(raw, ['ukWide', 'isUkWide', 'uk_wide']) ?? fromSheetBlock.ukWide),
     industryTags: toArray(firstAvailable(raw, ['industryTags', 'industry', 'industries', 'industry_tags'])),
     keywords: toArray(firstAvailable(raw, ['keywords', 'keywordTags', 'keyword_tags'])),
     partnerAffiliation: toArray(firstAvailable(raw, ['partnerAffiliation', 'partnerAffiliations', 'partners'])),
     demographic: {
-      age: toArray(firstAvailable(demographic, ['age']) ?? raw.age),
-      genderSexualPreference: toArray(firstAvailable(demographic, ['genderSexualPreference', 'gender', 'genderPreference']) ?? raw.genderSexualPreference ?? raw.gender),
-      ethnicity: toArray(firstAvailable(demographic, ['ethnicity']) ?? raw.ethnicity),
-      disability: toArray(firstAvailable(demographic, ['disability']) ?? raw.disability),
+      age: toArray(firstAvailable(demographic, ['age']) ?? raw.age ?? fromSheetBlock.age),
+      genderSexualPreference: toArray(
+        firstAvailable(demographic, ['genderSexualPreference', 'gender', 'genderPreference']) ??
+        raw.genderSexualPreference ??
+        raw.gender ??
+        fromSheetBlock.genderSexualPreference
+      ),
+      ethnicity: toArray(firstAvailable(demographic, ['ethnicity']) ?? raw.ethnicity ?? fromSheetBlock.ethnicity),
+      disability: toArray(firstAvailable(demographic, ['disability']) ?? raw.disability ?? fromSheetBlock.disability),
       lowerSocioEconomicBackground: toArray(
         firstAvailable(demographic, ['lowerSocioEconomicBackground', 'economic', 'lowerSocioEconomic']) ??
         raw.lowerSocioEconomicBackground ??
-        raw.economic
+        raw.economic ??
+        fromSheetBlock.lowerSocioEconomicBackground
       )
     }
   }
