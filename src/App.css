@@ -17,7 +17,7 @@
 
 body {
   margin: 0;
-  font-family: 'Avenir Next', Avenir, 'Nunito Sans', 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', sans-serif;
   background: var(--bg-page);
   color: var(--ink);
 }
@@ -27,7 +27,7 @@ h2,
 h3,
 h4,
 strong {
-  font-family: 'Avenir Next', Avenir, 'Nunito Sans', 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', sans-serif;
 }
 
 .portal-shell {
@@ -63,10 +63,7 @@ strong {
   background: transparent;
   padding: 0 2px 11px;
   border-bottom: 4px solid transparent;
-  font-size: 35px;
-  transform: scale(0.5);
-  transform-origin: left center;
-  width: 150%;
+  font-size: 22px;
   font-weight: 700;
   color: #191b25;
   cursor: pointer;
@@ -260,10 +257,7 @@ strong {
   color: var(--pink-deep);
   font-weight: 800;
   margin: 7px 0 6px;
-  font-size: 34px;
-  transform: scale(0.5);
-  transform-origin: left center;
-  width: 190%;
+  font-size: 16px;
 }
 
 .review-state {
@@ -480,10 +474,7 @@ strong {
   color: #fff;
   height: 40px;
   padding: 0 20px;
-  font-size: 24px;
-  transform: scale(0.5);
-  transform-origin: left center;
-  width: 170px;
+  font-size: 14px;
   margin-bottom: 10px;
   cursor: pointer;
 }
@@ -495,7 +486,7 @@ strong {
 
 .modal-title {
   margin: 0 0 24px;
-  font-family: Avenir, 'Avenir Next', 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', sans-serif;
   font-size: 18px;
   line-height: 1.4;
   color: #2a2e39;
@@ -564,10 +555,7 @@ strong {
   border: 1px solid transparent;
   background: transparent;
   color: #131720;
-  font-size: 38px;
-  transform: scale(0.5);
-  transform-origin: left center;
-  width: 200%;
+  font-size: 18px;
   text-align: left;
   padding: 10px 20px;
   border-radius: 30px;
