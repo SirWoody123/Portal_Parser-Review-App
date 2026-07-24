@@ -36,6 +36,64 @@ const POPULAR_KEYWORDS = ['Advice', "CV's & Portfolios", 'Money & Finance', 'Int
 const PARTNERS = ['UK Creative Festival']
 const SECTIONS = ['Industry', 'Demographic', 'Keywords', 'Audience location', 'Partner affiliation']
 
+function toArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.filter(Boolean)
+    } catch {
+      // Fall back to comma-separated parsing.
+    }
+    return trimmed
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+function toBool(value) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'yes' || normalized === 'true' || normalized === '1'
+  }
+  return Boolean(value)
+}
+
+function firstAvailable(obj, keys) {
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null) return obj[key]
+  }
+  return undefined
+}
+
+function normalizeOpportunityForEditor(raw) {
+  const demographic = raw.demographic || {}
+  return {
+    ...raw,
+    remote: toBool(firstAvailable(raw, ['remote', 'isRemote'])),
+    ukWide: toBool(firstAvailable(raw, ['ukWide', 'isUkWide', 'uk_wide'])),
+    industryTags: toArray(firstAvailable(raw, ['industryTags', 'industry', 'industries', 'industry_tags'])),
+    keywords: toArray(firstAvailable(raw, ['keywords', 'keywordTags', 'keyword_tags'])),
+    partnerAffiliation: toArray(firstAvailable(raw, ['partnerAffiliation', 'partnerAffiliations', 'partners'])),
+    demographic: {
+      age: toArray(firstAvailable(demographic, ['age']) ?? raw.age),
+      genderSexualPreference: toArray(firstAvailable(demographic, ['genderSexualPreference', 'gender', 'genderPreference']) ?? raw.genderSexualPreference ?? raw.gender),
+      ethnicity: toArray(firstAvailable(demographic, ['ethnicity']) ?? raw.ethnicity),
+      disability: toArray(firstAvailable(demographic, ['disability']) ?? raw.disability),
+      lowerSocioEconomicBackground: toArray(
+        firstAvailable(demographic, ['lowerSocioEconomicBackground', 'economic', 'lowerSocioEconomic']) ??
+        raw.lowerSocioEconomicBackground ??
+        raw.economic
+      )
+    }
+  }
+}
+
 function normalizeDateInput(raw) {
   if (!raw) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
@@ -66,13 +124,13 @@ function selectedTagSummary(edited) {
 }
 
 export default function ReviewDetailPanel({ opportunity, onSaveDraft, onClose }) {
-  const [edited, setEdited] = useState(opportunity)
+  const [edited, setEdited] = useState(() => normalizeOpportunityForEditor(opportunity))
   const [showTagsModal, setShowTagsModal] = useState(false)
   const [activeSection, setActiveSection] = useState('Industry')
   const [keywordInput, setKeywordInput] = useState('')
 
   useEffect(() => {
-    setEdited(opportunity)
+    setEdited(normalizeOpportunityForEditor(opportunity))
   }, [opportunity])
 
   const tags = useMemo(() => selectedTagSummary(edited), [edited])
