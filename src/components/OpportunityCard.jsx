@@ -14,35 +14,54 @@ function shortText(text, max = 120) {
   return text.length > max ? `${text.slice(0, max)}...` : text
 }
 
-export default function OpportunityCard({ opportunity, isSelected, onSelect }) {
+function companyName(opportunity) {
+  return opportunity.company || opportunity.companyName || opportunity.organisation || 'RicNic'
+}
+
+export default function OpportunityCard({ opportunity, onEdit, onApprove }) {
   return (
-    <article className={`card review-card ${isSelected ? 'is-selected' : ''}`}>
-      <button className="card-hit" onClick={onSelect} aria-label={`Review ${opportunity.title || 'opportunity'}`}>
-        <div className="card-image" role="presentation">
-          <div className="overlay-row">
-            <span className="badge status">Scouted</span>
-            {opportunity.remote && <span className="badge">Remote</span>}
-            {opportunity.ukWide && <span className="badge">UK Wide</span>}
+    <article className="card review-card">
+      <div className="card-image" role="presentation">
+        <div className="overlay-row">
+          <div className="left-icons" aria-hidden="true">
+            <span className="tiny-circle eye">◉</span>
+            <span className="tiny-circle pen">✎</span>
           </div>
+          <span className="badge status">AMBASSADOR</span>
+        </div>
+      </div>
+
+      <div className="card-body">
+        <div className="company-row">
+          <span className="company-name">{companyName(opportunity)}</span>
+          <span className="mail-icon" aria-hidden="true">✉</span>
         </div>
 
-        <div className="card-body">
+        <div className="title-row">
           <p className="card-category">{opportunity.opportunityType || 'Opportunity'}</p>
-          <h3>{opportunity.title || 'Untitled opportunity'}</h3>
-          <p className="card-description">{shortText(opportunity.draftedContent)}</p>
+          <span className="review-state">In Review</span>
+        </div>
 
-          <div className="meta-grid">
-            <div>
-              <span className="meta-label">Location</span>
-              <span>{opportunity.location || 'TBC'}</span>
-            </div>
-            <div>
-              <span className="meta-label">Deadline</span>
-              <span>{formatDate(opportunity.applicationDeadline)}</span>
-            </div>
+        <p className="card-description">{shortText(opportunity.draftedContent)}</p>
+
+        <div className="meta-grid">
+          <div>
+            <span className="meta-label">Deadline</span>
+            <span>{formatDate(opportunity.applicationDeadline)}</span>
+          </div>
+          <div>
+            <span className="meta-label">Location</span>
+            <span>{opportunity.location || 'TBC'}</span>
           </div>
         </div>
-      </button>
+
+        <div className="card-actions">
+          <button className="mini edit" onClick={onEdit}>Edit</button>
+          <button className="mini approve" onClick={onApprove}>Approve</button>
+          <button className="icon-action red" aria-label="Reject">↶</button>
+          <button className="icon-action green" aria-label="Restore">↷</button>
+        </div>
+      </div>
     </article>
   )
 }

@@ -32,9 +32,9 @@ function normalizeDateInput(raw) {
   return dt.toISOString().slice(0, 10)
 }
 
-function toLabels(key) {
-  if (key === 'genderSexualPreference') return 'Gender'
-  if (key === 'lowerSocioEconomicBackground') return 'Economic background'
+function toLabel(key) {
+  if (key === 'genderSexualPreference') return 'Gender & sexual preference'
+  if (key === 'lowerSocioEconomicBackground') return 'Lower socio economic background'
   return key[0].toUpperCase() + key.slice(1)
 }
 
@@ -50,7 +50,21 @@ function updateArray(setter, source, key, value, checked) {
   })
 }
 
-export default function ReviewDetailPanel({ opportunity, onSaveDraft, onPublish }) {
+function renderSelected(edited) {
+  const selected = Object.values(edited.demographic || {}).flat().filter(Boolean)
+  if (selected.length === 0) {
+    return <p className="no-tags">No tags selected yet.</p>
+  }
+  return (
+    <div className="chip-grid compact-chips">
+      {selected.map(item => (
+        <span className="chip active static" key={item}>{item}</span>
+      ))}
+    </div>
+  )
+}
+
+export default function ReviewDetailPanel({ opportunity, onSaveDraft, onPublish, onClose }) {
   const [edited, setEdited] = useState(opportunity)
   const [publishing, setPublishing] = useState(false)
 
@@ -73,91 +87,118 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, onPublish 
   }
 
   return (
-    <div className="detail-card">
-      <header className="detail-top">
-        <p className="eyebrow">Review details</p>
-        <h3>{edited.title || 'Untitled opportunity'}</h3>
-      </header>
+    <div className="editor-modal" role="dialog" aria-modal="true" aria-label="Edit opportunity">
+      <div className="editor-surface">
+        <button className="close-modal" onClick={onClose} aria-label="Close">×</button>
 
-      <div className="form-grid">
-        <label>
-          Title
-          <input value={edited.title || ''} onChange={e => changeField('title', e.target.value)} />
-        </label>
-        <label>
-          Category
-          <select value={edited.opportunityType || ''} onChange={e => changeField('opportunityType', e.target.value)}>
-            <option value="">Select category</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </label>
-        <label className="span-2">
-          Description
-          <textarea rows={5} value={edited.draftedContent || ''} onChange={e => changeField('draftedContent', e.target.value)} />
-        </label>
-        <label>
-          Salary
-          <input value={edited.salary || ''} onChange={e => changeField('salary', e.target.value)} />
-        </label>
-        <label>
-          Deadline
-          <input type="date" value={normalizeDateInput(edited.applicationDeadline)} onChange={e => changeField('applicationDeadline', e.target.value)} />
-        </label>
-        <label>
-          Publish date
-          <input type="date" value={normalizeDateInput(edited.publishDate)} onChange={e => changeField('publishDate', e.target.value)} />
-        </label>
-        <label>
-          Location
-          <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
-        </label>
-        <label className="span-2">
-          Link
-          <input value={edited.link || ''} onChange={e => changeField('link', e.target.value)} />
-        </label>
-      </div>
+        <aside className="editor-nav">
+          <button className="editor-nav-item">Industry</button>
+          <button className="editor-nav-item is-active">Demographic</button>
+          <button className="editor-nav-item">Keywords</button>
+          <button className="editor-nav-item">Audience location</button>
+          <button className="editor-nav-item">Partner affiliation</button>
+        </aside>
 
-      <div className="flag-row">
-        <label className="toggle-pill">
-          <input type="checkbox" checked={edited.remote || false} onChange={e => changeField('remote', e.target.checked)} />
-          <span>Remote</span>
-        </label>
-        <label className="toggle-pill">
-          <input type="checkbox" checked={edited.ukWide || false} onChange={e => changeField('ukWide', e.target.checked)} />
-          <span>UK Wide</span>
-        </label>
-      </div>
+        <section className="editor-main">
+          <p className="breadcrumb">All content  ›  Add new {edited.opportunityType || 'opportunity'}</p>
+          <h3 className="editor-title">Please select relevant demographic tags that this opportunity relates to:</h3>
 
-      <div className="demographic-wrap">
-        {Object.entries(DEMOGRAPHICS).map(([group, options]) => (
-          <section key={group} className="demo-section">
-            <h4>{toLabels(group)}</h4>
-            <div className="chip-grid">
-              {options.map(opt => {
-                const checked = (edited.demographic?.[group] || []).includes(opt)
-                return (
-                  <label key={opt} className={`chip ${checked ? 'active' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={e => updateArray(setEdited, edited, group, opt, e.target.checked)}
-                    />
-                    <span>{opt}</span>
-                  </label>
-                )
-              })}
+          <div className="field-stack">
+            <label>
+              Video type
+              <select value={edited.opportunityType || ''} onChange={e => changeField('opportunityType', e.target.value)}>
+                <option value="">Select type</option>
+                {CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Video title
+              <input value={edited.title || ''} onChange={e => changeField('title', e.target.value)} />
+            </label>
+
+            <label>
+              Short summary
+              <textarea rows={6} value={edited.draftedContent || ''} onChange={e => changeField('draftedContent', e.target.value)} />
+            </label>
+
+            <div className="tags-card">
+              <p className="tag-heading">Please add some relevant tags to help our community find this video:</p>
+              {renderSelected(edited)}
             </div>
-          </section>
-        ))}
-      </div>
 
-      <div className="actions review-actions">
-        <button className="ghost" onClick={saveDraft}>Save draft</button>
-        <button className="publish" onClick={publish} disabled={publishing}>
-          {publishing ? 'Approving...' : 'Approve & publish'}
-        </button>
+            <div className="demographic-wrap modal-demo">
+              {Object.entries(DEMOGRAPHICS).map(([group, options]) => (
+                <section key={group} className="demo-section">
+                  <h4>{toLabel(group)}</h4>
+                  <div className="chip-grid">
+                    {options.map(opt => {
+                      const checked = (edited.demographic?.[group] || []).includes(opt)
+                      return (
+                        <label key={opt} className={`chip ${checked ? 'active' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => updateArray(setEdited, edited, group, opt, e.target.checked)}
+                          />
+                          <span>{opt}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+
+          <div className="actions review-actions editor-actions">
+            <button className="ghost" onClick={saveDraft}>Save</button>
+            <button className="ghost" onClick={onClose}>Cancel</button>
+            <button className="publish" onClick={publish} disabled={publishing}>
+              {publishing ? 'Approving...' : 'Approve'}
+            </button>
+          </div>
+        </section>
+
+        <aside className="editor-rail">
+          <div className="rail-card">
+            <p><strong>Created at:</strong> {normalizeDateInput(edited.publishDate) || 'TBC'}</p>
+            <p><strong>Status:</strong> In Review</p>
+            <label>
+              Published at
+              <input type="date" value={normalizeDateInput(edited.publishDate)} onChange={e => changeField('publishDate', e.target.value)} />
+            </label>
+          </div>
+
+          <div className="rail-card">
+            <label>
+              Select company
+              <input value={edited.company || edited.companyName || 'RicNic'} onChange={e => changeField('company', e.target.value)} />
+            </label>
+            <label>
+              Schedule post
+              <input type="date" value={normalizeDateInput(edited.applicationDeadline)} onChange={e => changeField('applicationDeadline', e.target.value)} />
+            </label>
+            <label>
+              Link
+              <input value={edited.link || ''} onChange={e => changeField('link', e.target.value)} />
+            </label>
+            <label>
+              Location
+              <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
+            </label>
+            <label className="inline-checkbox">
+              <input type="checkbox" checked={edited.remote || false} onChange={e => changeField('remote', e.target.checked)} />
+              Is this a remote opportunity?
+            </label>
+            <label className="inline-checkbox">
+              <input type="checkbox" checked={edited.ukWide || false} onChange={e => changeField('ukWide', e.target.checked)} />
+              Is this a UK-wide opportunity?
+            </label>
+          </div>
+        </aside>
       </div>
     </div>
   )

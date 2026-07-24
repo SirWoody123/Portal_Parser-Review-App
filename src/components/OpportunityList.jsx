@@ -1,14 +1,14 @@
 import OpportunityCard from './OpportunityCard'
 
-export default function OpportunityList({ opportunities, selectedId, onSelect }) {
+export default function OpportunityList({ opportunities, onEdit, onApprove }) {
   return (
     <div className="list">
       {opportunities.map(opp => (
         <OpportunityCard
           key={opp.rowIndex}
           opportunity={opp}
-          isSelected={selectedId === opp.rowIndex}
-          onSelect={() => onSelect(opp)}
+          onEdit={() => onEdit(opp)}
+          onApprove={() => onApprove(opp)}
         />
       ))}
     </div>

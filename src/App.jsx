@@ -26,7 +26,7 @@ function App() {
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [selectedId, setSelectedId] = useState(null)
+  const [editing, setEditing] = useState(null)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH)
@@ -44,7 +44,6 @@ function App() {
       const data = await res.json()
       const rows = data.opportunities || []
       setOpportunities(rows)
-      setSelectedId(rows[0]?.rowIndex ?? null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -62,8 +61,8 @@ function App() {
       if (!res.ok) throw new Error('Failed to publish')
       setOpportunities(prev => {
         const next = prev.filter(o => o.rowIndex !== rowIndex)
-        if (selectedId === rowIndex) {
-          setSelectedId(next[0]?.rowIndex ?? null)
+        if (editing?.rowIndex === rowIndex) {
+          setEditing(null)
         }
         return next
       })
@@ -93,7 +92,6 @@ function App() {
   })
 
   const visible = filtered.slice(0, visibleCount)
-  const selected = opportunities.find(o => o.rowIndex === selectedId) || visible[0] || null
 
   const hasMore = filtered.length > visible.length
 
@@ -101,50 +99,56 @@ function App() {
     setVisibleCount(ITEMS_PER_BATCH)
   }, [search, typeFilter])
 
-  useEffect(() => {
-    if (!selected) {
-      setSelectedId(filtered[0]?.rowIndex ?? null)
-    }
-  }, [filtered, selected])
-
   return (
     <div className="portal-shell">
       <aside className="portal-sidebar">
         <div className="brand-lockup">
-          <span className="brand-pill">Review</span>
-          <h1>ERIC Portal</h1>
+          <h1>ERIC</h1>
         </div>
         <nav>
-          <button className="nav-item">Overview</button>
-          <button className="nav-item is-active">Scouted</button>
-          <button className="nav-item">Published</button>
+          <button className="nav-item">Profile</button>
+          <button className="nav-item">All posts</button>
+          <button className="nav-item">All companies</button>
+          <button className="nav-item is-active">To review</button>
+          <button className="nav-item">Data dashboard</button>
+          <button className="nav-item section-label" disabled>ACCOUNT</button>
+          <button className="nav-item">Users</button>
           <button className="nav-item">Settings</button>
+          <button className="nav-item">Support</button>
+          <button className="nav-item">Log out</button>
         </nav>
+        <div className="verified-pill">Verified</div>
       </aside>
 
-      <main className="portal-content-wrap">
-        <section className="portal-content">
-          <header className="review-header">
-            <div>
-              <p className="eyebrow">Tab 3</p>
-              <h2>Scouted Review Queue</h2>
+      <main className="portal-content-wrap portal-content-only">
+        <section className="portal-content review-feed">
+          <header className="review-top-row">
+            <div className="tabs">
+              <button className="tab is-active">Content</button>
+              <button className="tab">Profiles</button>
+              <button className="tab">Scouted</button>
+              <button className="tab">Upgrade</button>
             </div>
-            <div className="count-chip">{filtered.length} queued</div>
+
+            <div className="filter-row compact">
+              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type">
+                {types.map(type => (
+                  <option key={type} value={type}>{type === 'all' ? 'Content type' : type}</option>
+                ))}
+              </select>
+              <div className="search-wrap">
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search...."
+                  aria-label="Search opportunities"
+                />
+                <button className="search-button" aria-label="Search">⌕</button>
+              </div>
+            </div>
           </header>
 
-          <div className="filter-row">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search title, location, salary"
-              aria-label="Search opportunities"
-            />
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type">
-              {types.map(type => (
-                <option key={type} value={type}>{type === 'all' ? 'All categories' : type}</option>
-              ))}
-            </select>
-          </div>
+          <div className="queue-count">{filtered.length} in queue</div>
 
           {error && <div className="error">Error: {error}</div>}
 
@@ -158,8 +162,8 @@ function App() {
             <>
               <OpportunityList
                 opportunities={visible}
-                selectedId={selected?.rowIndex ?? null}
-                onSelect={opp => setSelectedId(opp.rowIndex)}
+                onEdit={opp => setEditing(opp)}
+                onApprove={opp => handlePublish(opp.rowIndex, opp)}
               />
               {hasMore && (
                 <div className="show-more-row">
@@ -171,19 +175,16 @@ function App() {
             </>
           )}
         </section>
-
-        <section className="detail-pane">
-          {selected ? (
-            <ReviewDetailPanel
-              opportunity={selected}
-              onSaveDraft={handleSaveDraft}
-              onPublish={handlePublish}
-            />
-          ) : (
-            <div className="empty detail-empty">Select an opportunity to start reviewing.</div>
-          )}
-        </section>
       </main>
+
+      {editing && (
+        <ReviewDetailPanel
+          opportunity={editing}
+          onSaveDraft={handleSaveDraft}
+          onPublish={handlePublish}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }
