@@ -226,6 +226,93 @@ function searchMatch(opp, term) {
   return haystack.includes(term.toLowerCase())
 }
 
+function toArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (typeof value !== 'string') return []
+  return value.split(',').map(item => item.trim()).filter(Boolean)
+}
+
+function toBool(value) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'yes' || normalized === 'true' || normalized === '1'
+  }
+  return Boolean(value)
+}
+
+function parseDemographicsBlock(raw) {
+  const result = {
+    age: [],
+    genderSexualPreference: [],
+    ethnicity: [],
+    disability: [],
+    lowerSocioEconomicBackground: []
+  }
+  if (!raw || typeof raw !== 'string') return result
+  const lines = raw.split('\n').map(line => line.trim()).filter(Boolean)
+  for (const line of lines) {
+    const [k, ...rest] = line.split(':')
+    if (!k || rest.length === 0) continue
+    const key = k.trim().toLowerCase()
+    const val = rest.join(':').trim()
+    if (key === 'age') result.age = toArray(val)
+    if (key === 'gender' || key === 'gender & sexual preference') result.genderSexualPreference = toArray(val)
+    if (key === 'ethnicity') result.ethnicity = toArray(val)
+    if (key === 'disability') result.disability = toArray(val)
+    if (key === 'economic background' || key === 'lower socio economic background') {
+      result.lowerSocioEconomicBackground = toArray(val)
+    }
+  }
+  return result
+}
+
+function normalizeDateForBackend(raw) {
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) return raw
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T00:00:00.000Z`
+  const dmyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (dmyMatch) {
+    const dd = String(Number(dmyMatch[1])).padStart(2, '0')
+    const mm = String(Number(dmyMatch[2])).padStart(2, '0')
+    const yyyy = dmyMatch[3]
+    return `${yyyy}-${mm}-${dd}T00:00:00.000Z`
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return `${toISODate(parsed)}T00:00:00.000Z`
+}
+
+function buildPublishPayload(opp) {
+  const fallbackDemo = parseDemographicsBlock(opp.demographics)
+  const currentDemo = opp.demographic || {}
+  return {
+    ...opp,
+    companyID: opp.companyID || opp.companyId || '',
+    applicationDeadline: normalizeDateForBackend(opp.applicationDeadline),
+    publishDate: normalizeDateForBackend(opp.publishDate),
+    schedulePost: opp.schedulePost || '',
+    remote: toBool(opp.remote),
+    ukWide: toBool(opp.ukWide),
+    demographic: {
+      age: currentDemo.age || fallbackDemo.age,
+      genderSexualPreference: currentDemo.genderSexualPreference || fallbackDemo.genderSexualPreference,
+      ethnicity: currentDemo.ethnicity || fallbackDemo.ethnicity,
+      disability: currentDemo.disability || fallbackDemo.disability,
+      lowerSocioEconomicBackground: currentDemo.lowerSocioEconomicBackground || fallbackDemo.lowerSocioEconomicBackground,
+      industry: currentDemo.industry || toArray(opp.industry)
+    }
+  }
+}
+
+function validatePublishPayload(opp) {
+  const errors = []
+  if (!opp.title) errors.push('Title is required.')
+  if (!opp.opportunityType) errors.push('Opportunity type is required.')
+  if (!opp.applicationDeadline) errors.push('Application deadline is missing or invalid.')
+  return errors
+}
+
 function App() {
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -269,10 +356,17 @@ function App() {
 
   const handlePublish = async (rowIndex, editedOpp) => {
     try {
+      const payload = buildPublishPayload(editedOpp)
+      const errors = validatePublishPayload(payload)
+      if (errors.length > 0) {
+        setError(errors.join(' '))
+        return
+      }
+
       const res = await fetch(`${API_BASE}/update-queue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rowIndex, editedOpportunity: editedOpp })
+        body: JSON.stringify({ rowIndex, editedOpportunity: payload })
       })
       if (!res.ok) throw new Error('Failed to publish')
       setOpportunities(prev => {
