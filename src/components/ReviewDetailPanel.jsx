@@ -434,6 +434,21 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
             </label>
 
             <label>
+              Anything else important?
+              <textarea rows={3} value={edited.anythingElseImportant || ''} onChange={e => changeField('anythingElseImportant', e.target.value)} />
+            </label>
+
+            <label>
+              Application deadline
+              <input
+                type="date"
+                value={normalizeDateInput(edited.applicationDeadline)}
+                onChange={e => changeField('applicationDeadline', e.target.value)}
+              />
+              <span className="field-help">Correct this if the extracted deadline looks wrong — it also drives the schedule-date rules below.</span>
+            </label>
+
+            <label>
               Optional expiry date:
               <input type="date" value={normalizeDateInput(edited.expiredDate)} onChange={e => changeField('expiredDate', e.target.value)} />
               <span className="field-help">Let us know if this content should expire. If not, it'll stay on the ERIC app indefinitely.</span>
@@ -485,6 +500,10 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
               <label>
                 Location
                 <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
+              </label>
+              <label>
+                Salary
+                <input value={edited.salary || ''} onChange={e => changeField('salary', e.target.value)} />
               </label>
               <label>
                 Link
