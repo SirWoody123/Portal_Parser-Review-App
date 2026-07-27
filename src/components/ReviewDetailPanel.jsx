@@ -433,6 +433,36 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
               <textarea rows={6} value={edited.draftedContent || ''} onChange={e => changeField('draftedContent', e.target.value)} />
             </label>
 
+            {edited.opportunityType === 'Course' && (
+              <div className="type-specific-fields">
+                <label>
+                  Length of course
+                  <input placeholder="e.g. 6 weeks" value={edited.lengthOfCourse || ''} onChange={e => changeField('lengthOfCourse', e.target.value)} />
+                </label>
+                <label>
+                  Paid or free?
+                  <input placeholder="e.g. Free" value={edited.paidOrFreeCourses || ''} onChange={e => changeField('paidOrFreeCourses', e.target.value)} />
+                </label>
+                <label>
+                  Course location
+                  <input value={edited.courseLocation || ''} onChange={e => changeField('courseLocation', e.target.value)} />
+                </label>
+              </div>
+            )}
+
+            {edited.opportunityType === 'Apprenticeship' && (
+              <div className="type-specific-fields">
+                <label>
+                  Length of apprenticeship
+                  <input placeholder="e.g. 18 months" value={edited.lengthOfApprenticeship || ''} onChange={e => changeField('lengthOfApprenticeship', e.target.value)} />
+                </label>
+                <label>
+                  Level of apprenticeship
+                  <input placeholder="e.g. Level 4" value={edited.levelOfApprenticeship || ''} onChange={e => changeField('levelOfApprenticeship', e.target.value)} />
+                </label>
+              </div>
+            )}
+
             <label>
               Anything else important?
               <textarea rows={3} value={edited.anythingElseImportant || ''} onChange={e => changeField('anythingElseImportant', e.target.value)} />

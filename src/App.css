@@ -429,6 +429,14 @@ strong {
   resize: vertical;
 }
 
+.type-specific-fields {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  background: #f4f6fb;
+  border-radius: 10px;
+}
+
 .admin-row {
   background: #101826;
   color: #fff;
