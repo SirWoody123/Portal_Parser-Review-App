@@ -290,17 +290,25 @@ function buildPublishPayload(opp) {
     ...opp,
     companyID: opp.companyID || opp.companyId || '',
     applicationDeadline: normalizeDateForBackend(opp.applicationDeadline),
+    // transformData() reads publishedAt, not publishDate — keep both so nothing downstream breaks.
     publishDate: normalizeDateForBackend(opp.publishDate),
+    publishedAt: normalizeDateForBackend(opp.publishDate),
+    // transformData() reads description, not draftedContent — the copywriter's edited text lives in draftedContent.
+    description: opp.draftedContent || opp.description || '',
     schedulePost: opp.schedulePost || '',
     remote: toBool(opp.remote),
     ukWide: toBool(opp.ukWide),
+    // Publishing means "send it live" in this pipeline — workflow labels like "Ready for
+    // Review"/"scheduled" aren't statuses the real portal's queries match on.
+    status: 'live',
     demographic: {
       age: currentDemo.age || fallbackDemo.age,
       genderSexualPreference: currentDemo.genderSexualPreference || fallbackDemo.genderSexualPreference,
       ethnicity: currentDemo.ethnicity || fallbackDemo.ethnicity,
       disability: currentDemo.disability || fallbackDemo.disability,
       lowerSocioEconomicBackground: currentDemo.lowerSocioEconomicBackground || fallbackDemo.lowerSocioEconomicBackground,
-      industry: currentDemo.industry || toArray(opp.industry)
+      // industryTags is what the editor's Industry tag picker actually writes to.
+      industry: (opp.industryTags && opp.industryTags.length ? opp.industryTags : null) || currentDemo.industry || toArray(opp.industry)
     }
   }
 }
