@@ -27,6 +27,16 @@ function parseDateOnly(raw) {
   }
   const dt = new Date(raw)
   if (Number.isNaN(dt.getTime())) return null
+
+  // JS's Date constructor defaults to year 2001 for strings with no year (e.g. "26 Sep"),
+  // which reads as permanently overdue. Treat that as "year not specified" and assume the
+  // nearest future occurrence of that month/day instead.
+  if (dt.getFullYear() === 2001 && !/2001/.test(raw)) {
+    const today = todayDate()
+    const thisYear = new Date(today.getFullYear(), dt.getMonth(), dt.getDate())
+    return thisYear < today ? new Date(today.getFullYear() + 1, dt.getMonth(), dt.getDate()) : thisYear
+  }
+
   return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
 }
 
@@ -369,13 +379,15 @@ function App() {
     }
   }
 
+  // Returns { ok } so callers (auto-publish, "Publish now") know whether a schedule-state
+  // entry should actually be cleared — a failed publish must not look like a successful one.
   const handlePublish = async (rowIndex, editedOpp) => {
     try {
       const payload = buildPublishPayload(editedOpp)
       const errors = validatePublishPayload(payload)
       if (errors.length > 0) {
         setError(errors.join(' '))
-        return
+        return { ok: false, message: errors.join(' ') }
       }
 
       const res = await fetch(`${API_BASE}/update-queue`, {
@@ -391,8 +403,10 @@ function App() {
         }
         return next
       })
+      return { ok: true }
     } catch (err) {
       setError(err.message)
+      return { ok: false, message: err.message }
     }
   }
 
@@ -444,10 +458,11 @@ function App() {
   }
 
   const publishScheduledNow = async opp => {
+    const result = await handlePublish(opp.rowIndex, opp)
+    if (!result.ok) return
     const scheduledMap = await loadScheduledMap()
     delete scheduledMap[opp.rowIndex]
     await saveScheduledMap(scheduledMap)
-    await handlePublish(opp.rowIndex, opp)
   }
 
   useEffect(() => {
@@ -466,7 +481,8 @@ function App() {
     ;(async () => {
       try {
         for (const opp of due) {
-          await handlePublish(opp.rowIndex, opp)
+          const result = await handlePublish(opp.rowIndex, opp)
+          if (!result.ok) continue
           const scheduledMap = await loadScheduledMap()
           delete scheduledMap[opp.rowIndex]
           await saveScheduledMap(scheduledMap)
