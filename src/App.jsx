@@ -6,7 +6,6 @@ import './App.css'
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
 const PAGES = ['Scouted', 'Published', 'Schedule']
-const SCHEDULE_STORAGE_KEY = 'review-app-scheduled-map'
 
 function toISODate(date) {
   const y = date.getFullYear()
@@ -86,19 +85,27 @@ function scheduleRule(deadlineRaw) {
   }
 }
 
-function loadScheduledMap() {
+async function loadScheduledMap() {
   try {
-    const raw = localStorage.getItem(SCHEDULE_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : {}
+    const res = await fetch(`${API_BASE}/schedule-state`)
+    if (!res.ok) return {}
+    const data = await res.json()
+    return data.scheduleState && typeof data.scheduleState === 'object' ? data.scheduleState : {}
   } catch {
     return {}
   }
 }
 
-function saveScheduledMap(map) {
-  localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(map))
+async function saveScheduledMap(map) {
+  try {
+    await fetch(`${API_BASE}/schedule-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduleState: map })
+    })
+  } catch {
+    // Best-effort — the opportunities state already reflects the change locally either way.
+  }
 }
 
 function buildScheduleCounts(rows) {
@@ -349,7 +356,7 @@ function App() {
       if (!res.ok) throw new Error('Failed to fetch opportunities')
       const data = await res.json()
       const rows = data.opportunities || []
-      const scheduledMap = loadScheduledMap()
+      const scheduledMap = await loadScheduledMap()
       const hydrated = rows.map(row => {
         const localScheduled = scheduledMap[row.rowIndex]
         return localScheduled ? { ...row, ...localScheduled } : row
@@ -389,7 +396,7 @@ function App() {
     }
   }
 
-  const handleSaveDraft = (rowIndex, updatedFields) => {
+  const handleSaveDraft = async (rowIndex, updatedFields) => {
     const check = validateScheduleDate(updatedFields.applicationDeadline, updatedFields.schedulePost)
     if (!check.ok) {
       setError(check.message)
@@ -397,6 +404,8 @@ function App() {
     }
 
     setError(null)
+    let scheduleEntry = null
+
     setOpportunities(prev => {
       const next = prev.map(opp => {
         if (opp.rowIndex !== rowIndex) return opp
@@ -405,35 +414,40 @@ function App() {
         return merged
       })
 
-      const scheduledMap = loadScheduledMap()
       const edited = next.find(opp => opp.rowIndex === rowIndex)
-      if (edited?.schedulePost) {
-        scheduledMap[rowIndex] = {
-          schedulePost: edited.schedulePost,
-          status: 'scheduled',
-          demographic: edited.demographic,
-          industryTags: edited.industryTags,
-          keywords: edited.keywords,
-          partnerAffiliation: edited.partnerAffiliation,
-          remote: edited.remote,
-          ukWide: edited.ukWide,
-          expiredDate: edited.expiredDate
-        }
-      } else {
-        delete scheduledMap[rowIndex]
-      }
-      saveScheduledMap(scheduledMap)
+      scheduleEntry = edited?.schedulePost
+        ? {
+            schedulePost: edited.schedulePost,
+            status: 'scheduled',
+            demographic: edited.demographic,
+            industryTags: edited.industryTags,
+            keywords: edited.keywords,
+            partnerAffiliation: edited.partnerAffiliation,
+            remote: edited.remote,
+            ukWide: edited.ukWide,
+            expiredDate: edited.expiredDate
+          }
+        : null
+
       return next
     })
+
+    const scheduledMap = await loadScheduledMap()
+    if (scheduleEntry) {
+      scheduledMap[rowIndex] = scheduleEntry
+    } else {
+      delete scheduledMap[rowIndex]
+    }
+    await saveScheduledMap(scheduledMap)
 
     return { ok: true }
   }
 
-  const publishScheduledNow = opp => {
-    const scheduledMap = loadScheduledMap()
+  const publishScheduledNow = async opp => {
+    const scheduledMap = await loadScheduledMap()
     delete scheduledMap[opp.rowIndex]
-    saveScheduledMap(scheduledMap)
-    handlePublish(opp.rowIndex, opp)
+    await saveScheduledMap(scheduledMap)
+    await handlePublish(opp.rowIndex, opp)
   }
 
   useEffect(() => {
@@ -453,9 +467,9 @@ function App() {
       try {
         for (const opp of due) {
           await handlePublish(opp.rowIndex, opp)
-          const scheduledMap = loadScheduledMap()
+          const scheduledMap = await loadScheduledMap()
           delete scheduledMap[opp.rowIndex]
-          saveScheduledMap(scheduledMap)
+          await saveScheduledMap(scheduledMap)
         }
       } finally {
         dueProcessingRef.current = false

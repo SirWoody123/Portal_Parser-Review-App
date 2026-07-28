@@ -245,8 +245,8 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
     setKeywordInput('')
   }
 
-  const handleSave = () => {
-    const result = onSaveDraft(edited.rowIndex, edited)
+  const handleSave = async () => {
+    const result = await onSaveDraft(edited.rowIndex, edited)
     if (result?.ok === false) {
       setSaveError(result.message || 'Unable to save this schedule.')
       return
