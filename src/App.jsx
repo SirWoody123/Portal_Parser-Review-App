@@ -646,7 +646,7 @@ function App() {
             <div className="loading spinner-wrap" role="status" aria-live="polite">
               <span className="spinner" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : page === 'Schedule' ? null : filtered.length === 0 ? (
             <div className="empty">No opportunities in {page}.</div>
           ) : page === 'Scouted' ? (
             <>
@@ -731,33 +731,36 @@ function App() {
                 <span><i className="dot mid" /> 20 to 29</span>
                 <span><i className="dot high" /> 30 and above</span>
               </div>
-
-              {selectedCalendarDate && (
-                <section className="day-schedule-menu">
-                  <div className="day-schedule-title">
-                    Scheduled for {selectedCalendarDate} ({selectedDayOpps.length})
-                  </div>
-                  {selectedDayOpps.length === 0 ? (
-                    <div className="empty">No opportunities scheduled on this day.</div>
-                  ) : (
-                    <div className="day-schedule-list">
-                      {selectedDayOpps.map(opp => (
-                        <article key={`day-${opp.rowIndex}`} className="day-schedule-item">
-                          <div>
-                            <div className="day-item-title">{opp.title || 'Untitled opportunity'}</div>
-                            <div className="day-item-meta">{opp.opportunityType || 'Opportunity'} • {opp.location || 'TBC'}</div>
-                          </div>
-                          <button className="mini edit" onClick={() => setEditing(opp)}>Edit</button>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
             </section>
           )}
         </section>
       </main>
+
+      {selectedCalendarDate && (
+        <div className="day-popup-overlay" role="dialog" aria-modal="true" aria-label="Scheduled opportunities" onClick={() => setSelectedCalendarDate('')}>
+          <div className="day-popup-surface" onClick={e => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setSelectedCalendarDate('')} aria-label="Close">×</button>
+            <div className="day-schedule-title">
+              Scheduled for {selectedCalendarDate} ({selectedDayOpps.length})
+            </div>
+            {selectedDayOpps.length === 0 ? (
+              <div className="empty">No opportunities scheduled on this day.</div>
+            ) : (
+              <div className="day-schedule-list">
+                {selectedDayOpps.map(opp => (
+                  <article key={`day-${opp.rowIndex}`} className="day-schedule-item">
+                    <div>
+                      <div className="day-item-title">{opp.title || 'Untitled opportunity'}</div>
+                      <div className="day-item-meta">{opp.opportunityType || 'Opportunity'} • {opp.location || 'TBC'}</div>
+                    </div>
+                    <button className="mini edit" onClick={() => { setEditing(opp); setSelectedCalendarDate('') }}>Edit</button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {editing && (
         <ReviewDetailPanel

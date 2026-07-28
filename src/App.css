@@ -900,10 +900,25 @@ strong {
   background: #26a85f;
 }
 
-.day-schedule-menu {
-  margin-top: 16px;
-  border-top: 1px solid #eceef3;
-  padding-top: 12px;
+.day-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 4vw;
+}
+
+.day-popup-surface {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px;
+  width: min(560px, 100%);
+  max-height: 88vh;
+  overflow: auto;
 }
 
 .day-schedule-title {
