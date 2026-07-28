@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+
 const CATEGORIES = [
   'Apprenticeship',
   'Course',
@@ -185,6 +187,8 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
   const [activeSection, setActiveSection] = useState('Industry')
   const [keywordInput, setKeywordInput] = useState('')
   const [saveError, setSaveError] = useState('')
+  const [bannerUploading, setBannerUploading] = useState(false)
+  const [bannerError, setBannerError] = useState('')
 
   useEffect(() => {
     const normalized = normalizeOpportunityForEditor(opportunity)
@@ -200,6 +204,33 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
 
   const changeField = (field, value) => {
     setEdited(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleBannerUpload = async file => {
+    if (!file) return
+    setBannerError('')
+    setBannerUploading(true)
+    try {
+      const imageBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error('Could not read file'))
+        reader.readAsDataURL(file)
+      })
+
+      const res = await fetch(`${API_BASE}/upload-banner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64, filename: file.name })
+      })
+      if (!res.ok) throw new Error('Upload failed')
+      const data = await res.json()
+      changeField('bannerPic', data.url)
+    } catch (err) {
+      setBannerError(err.message || 'Failed to upload banner image.')
+    } finally {
+      setBannerUploading(false)
+    }
   }
 
   const changeEventDetail = (field, value) => {
@@ -432,6 +463,21 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
                 Republish every 14 days
               </label>
             </div>
+
+            <label>
+              Banner image
+              {edited.bannerPic && (
+                <img className="banner-preview" src={edited.bannerPic} alt="Banner preview" />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                disabled={bannerUploading}
+                onChange={e => handleBannerUpload(e.target.files?.[0])}
+              />
+              {bannerUploading && <span className="field-help">Uploading...</span>}
+              {bannerError && <div className="inline-error">{bannerError}</div>}
+            </label>
 
             <label>
               Video title
