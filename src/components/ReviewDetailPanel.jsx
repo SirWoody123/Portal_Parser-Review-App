@@ -525,7 +525,8 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
             <div className="rail-card">
               <label>
                 Select company
-                <input value={edited.company || edited.companyName || 'RicNic'} onChange={e => changeField('company', e.target.value)} />
+                <input value="ERIC Recommends" readOnly disabled />
+                <span className="field-help">Every opportunity here publishes under ERIC Recommends — this isn't editable.</span>
               </label>
               <label>
                 Location

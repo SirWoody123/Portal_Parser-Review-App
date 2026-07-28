@@ -15,7 +15,7 @@ function shortText(text, max = 120) {
 }
 
 function companyName(opportunity) {
-  return opportunity.company || opportunity.companyName || opportunity.organisation || 'RicNic'
+  return opportunity.company || opportunity.companyName || opportunity.organisation || 'ERIC Recommends'
 }
 
 export default function OpportunityCard({ opportunity, onEdit, onApprove, primaryLabel }) {
