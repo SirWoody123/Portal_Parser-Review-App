@@ -437,6 +437,12 @@ strong {
   border-radius: 10px;
 }
 
+.type-specific-fields .two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
 .admin-row {
   background: #101826;
   color: #fff;

@@ -202,6 +202,16 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
     setEdited(prev => ({ ...prev, [field]: value }))
   }
 
+  const changeEventDetail = (field, value) => {
+    setEdited(prev => ({
+      ...prev,
+      eventDetails: {
+        ...(prev.eventDetails || {}),
+        [field]: value
+      }
+    }))
+  }
+
   const updateDemographic = (group, value, checked) => {
     const current = edited.demographic?.[group] || []
     const next = checked ? [...current, value] : current.filter(v => v !== value)
@@ -459,6 +469,85 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
                 <label>
                   Level of apprenticeship
                   <input placeholder="e.g. Level 4" value={edited.levelOfApprenticeship || ''} onChange={e => changeField('levelOfApprenticeship', e.target.value)} />
+                </label>
+              </div>
+            )}
+
+            {edited.opportunityType === 'Event' && (
+              <div className="type-specific-fields">
+                <label>
+                  Event title
+                  <input value={edited.eventDetails?.eventTitle || ''} onChange={e => changeEventDetail('eventTitle', e.target.value)} />
+                </label>
+                <label>
+                  Event description
+                  <textarea rows={3} value={edited.eventDetails?.eventDescription || ''} onChange={e => changeEventDetail('eventDescription', e.target.value)} />
+                </label>
+                <label>
+                  Event date
+                  <input type="date" value={normalizeDateInput(edited.eventDate)} onChange={e => changeField('eventDate', e.target.value)} />
+                </label>
+                <div className="two-col">
+                  <label>
+                    Start time
+                    <input placeholder="e.g. 6:00pm" value={edited.eventDetails?.eventStartTime || ''} onChange={e => changeEventDetail('eventStartTime', e.target.value)} />
+                  </label>
+                  <label>
+                    End time
+                    <input placeholder="e.g. 9:00pm" value={edited.eventDetails?.eventEndTime || ''} onChange={e => changeEventDetail('eventEndTime', e.target.value)} />
+                  </label>
+                </div>
+                <label>
+                  Duration
+                  <input placeholder="e.g. 3 hours" value={edited.eventDetails?.eventDuration || ''} onChange={e => changeEventDetail('eventDuration', e.target.value)} />
+                </label>
+                <label>
+                  Venue details
+                  <input placeholder="e.g. The Design Museum, Kensington" value={edited.eventDetails?.venueDetails || ''} onChange={e => changeEventDetail('venueDetails', e.target.value)} />
+                </label>
+                <div className="two-col">
+                  <label>
+                    Format
+                    <input placeholder="e.g. In-person" value={edited.eventDetails?.eventFormat || ''} onChange={e => changeEventDetail('eventFormat', e.target.value)} />
+                  </label>
+                  <label>
+                    Event type
+                    <input placeholder="e.g. Workshop" value={edited.eventDetails?.eventType || ''} onChange={e => changeEventDetail('eventType', e.target.value)} />
+                  </label>
+                </div>
+                <label>
+                  Organizer
+                  <input value={edited.eventDetails?.organizer || ''} onChange={e => changeEventDetail('organizer', e.target.value)} />
+                </label>
+                <div className="two-col">
+                  <label>
+                    Ticket price
+                    <input placeholder="e.g. Free" value={edited.eventDetails?.ticketPrice || ''} onChange={e => changeEventDetail('ticketPrice', e.target.value)} />
+                  </label>
+                  <label>
+                    Capacity
+                    <input placeholder="e.g. 50 people" value={edited.eventDetails?.capacity || ''} onChange={e => changeEventDetail('capacity', e.target.value)} />
+                  </label>
+                </div>
+                <label>
+                  Booking / registration link
+                  <input value={edited.eventDetails?.bookingRegistration || ''} onChange={e => changeEventDetail('bookingRegistration', e.target.value)} />
+                </label>
+                <label>
+                  Target audience
+                  <input value={edited.eventDetails?.targetAudience || ''} onChange={e => changeEventDetail('targetAudience', e.target.value)} />
+                </label>
+                <label>
+                  Refund policy
+                  <input value={edited.eventDetails?.refundPolicy || ''} onChange={e => changeEventDetail('refundPolicy', e.target.value)} />
+                </label>
+                <label>
+                  Contact information
+                  <input value={edited.eventDetails?.contactInformation || ''} onChange={e => changeEventDetail('contactInformation', e.target.value)} />
+                </label>
+                <label>
+                  Special requirements
+                  <textarea rows={2} value={edited.eventDetails?.specialRequirements || ''} onChange={e => changeEventDetail('specialRequirements', e.target.value)} />
                 </label>
               </div>
             )}
