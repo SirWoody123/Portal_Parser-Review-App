@@ -135,6 +135,10 @@ async function saveScheduledMap(map) {
   }
 }
 
+// Matches the schedule calendar's "low" density threshold — a day under this is considered
+// to still have room before we start pushing opportunities further out.
+const DAILY_SCHEDULE_TARGET = 20
+
 function buildScheduleCounts(rows) {
   return rows.reduce((acc, opp) => {
     if ((opp.status || '').toLowerCase() !== 'scheduled') return acc
@@ -167,6 +171,10 @@ function computeSuggestedScheduleDate(opportunity, allRows) {
     ? deadline
     : new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30)
 
+  // Fill near-term days up to the daily target before spreading further out — a distant
+  // deadline shouldn't mean the next week goes unscheduled just because some day months away
+  // happens to be emptier. Only once every day in range is already at/above target do we fall
+  // back to picking whichever day is least loaded.
   let cursor = new Date(start)
   let bestDate = toISODate(start)
   let bestScore = Number.POSITIVE_INFINITY
@@ -174,6 +182,9 @@ function computeSuggestedScheduleDate(opportunity, allRows) {
   while (cursor <= end) {
     const key = toISODate(cursor)
     const load = counts[key] || 0
+    if (load < DAILY_SCHEDULE_TARGET) {
+      return key
+    }
     const distance = dayDiff(cursor, today)
     const score = load * 100 + distance
     if (score < bestScore) {
@@ -224,7 +235,7 @@ function buildCalendarMonths(rows, startMonth, span = 12) {
       const count = counts[key] || 0
       let density = 'low'
       if (count >= 30) density = 'high'
-      else if (count >= 20) density = 'mid'
+      else if (count >= DAILY_SCHEDULE_TARGET) density = 'mid'
       cells.push({
         key,
         day,
