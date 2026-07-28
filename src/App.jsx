@@ -95,6 +95,23 @@ function scheduleRule(deadlineRaw) {
   }
 }
 
+// Groups the Scouted queue by how soon it needs attention — an unparseable/missing deadline
+// is treated as urgent rather than flexible, since "unclear" needs a human look, not a default.
+function urgencyBucket(deadlineRaw) {
+  const deadline = parseDateOnly(deadlineRaw)
+  if (!deadline) return 'urgent'
+  const diff = dayDiff(deadline, todayDate())
+  if (diff <= 3) return 'urgent'
+  if (diff <= 14) return 'soon'
+  return 'later'
+}
+
+const URGENCY_SECTIONS = [
+  { key: 'urgent', label: 'Urgent' },
+  { key: 'soon', label: 'Within 2 weeks' },
+  { key: 'later', label: 'Months of time' }
+]
+
 async function loadScheduledMap() {
   try {
     const res = await fetch(`${API_BASE}/schedule-state`)
@@ -534,6 +551,15 @@ function App() {
 
   const visible = filtered.slice(0, visibleCount)
 
+  const scoutedGroups = useMemo(() => {
+    if (page !== 'Scouted') return null
+    const groups = { urgent: [], soon: [], later: [] }
+    filtered.forEach(opp => {
+      groups[urgencyBucket(opp.applicationDeadline)].push(opp)
+    })
+    return groups
+  }, [page, filtered])
+
   const calendarMonths = useMemo(() => {
     const start = parseDateOnly(calendarStart) || monthStartDate(todayDate())
     return buildCalendarMonths(opportunities, monthStartDate(start), 12)
@@ -611,6 +637,26 @@ function App() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="empty">No opportunities in {page}.</div>
+          ) : page === 'Scouted' ? (
+            <>
+              {URGENCY_SECTIONS.map(section => {
+                const items = scoutedGroups[section.key]
+                if (items.length === 0) return null
+                return (
+                  <section key={section.key} className="urgency-section">
+                    <h3 className={`urgency-heading urgency-${section.key}`}>
+                      {section.label} <span className="urgency-count">({items.length})</span>
+                    </h3>
+                    <OpportunityList
+                      opportunities={items}
+                      onEdit={opp => setEditing(opp)}
+                      onApprove={opp => handlePublish(opp.rowIndex, opp)}
+                      primaryLabel="Approve"
+                    />
+                  </section>
+                )
+              })}
+            </>
           ) : (
             <>
               <OpportunityList

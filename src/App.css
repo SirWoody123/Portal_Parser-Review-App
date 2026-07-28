@@ -132,6 +132,38 @@ strong {
   margin-bottom: 8px;
 }
 
+.urgency-section {
+  margin-bottom: 24px;
+}
+
+.urgency-heading {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0 0 10px;
+  padding-left: 10px;
+  border-left: 4px solid var(--line-dark);
+}
+
+.urgency-count {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.urgency-heading.urgency-urgent {
+  border-left-color: var(--pink);
+  color: var(--pink-deep);
+}
+
+.urgency-heading.urgency-soon {
+  border-left-color: #e8a33d;
+  color: #b9740b;
+}
+
+.urgency-heading.urgency-later {
+  border-left-color: var(--green);
+  color: #158a44;
+}
+
 .error,
 .loading,
 .empty {
