@@ -339,11 +339,24 @@ function buildPublishPayload(opp) {
   }
 }
 
+function isDescriptionUsable(description) {
+  if (!description) return false
+  const trimmed = description.trim()
+  if (trimmed.length < 20) return false
+  // Claude's extraction prompt writes "Unclear" when it can't determine a real description —
+  // correct behaviour for it, but never something that should reach a real user as-is.
+  if (/unclear/i.test(trimmed)) return false
+  return true
+}
+
 function validatePublishPayload(opp) {
   const errors = []
   if (!opp.title) errors.push('Title is required.')
   if (!opp.opportunityType) errors.push('Opportunity type is required.')
   if (!opp.applicationDeadline) errors.push('Application deadline is missing or invalid.')
+  if (!isDescriptionUsable(opp.description)) {
+    errors.push('Description looks incomplete or unclear — write a proper summary before publishing.')
+  }
   return errors
 }
 
