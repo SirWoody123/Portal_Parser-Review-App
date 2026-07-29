@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import ScheduleDatePicker from './ScheduleDatePicker'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -181,7 +182,50 @@ function selectedTagSummary(edited) {
   ]
 }
 
-export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedScheduleDate, scheduleRuleInfo, onClose }) {
+// A field counts as "needs review" if it's empty or still carries Claude's own placeholder
+// for "couldn't work this out" — the same signal the publish-time guard in App.jsx uses, just
+// surfaced while editing instead of only at the point of publishing.
+function isBlankish(value) {
+  if (value === undefined || value === null) return true
+  const trimmed = String(value).trim()
+  if (!trimmed) return true
+  return /unclear/i.test(trimmed)
+}
+
+function isDescriptionUsable(value) {
+  if (isBlankish(value)) return false
+  return String(value).trim().length >= 20
+}
+
+// Checklist behind the health bar — each item is worth equal weight. Deliberately limited to
+// fields every opportunity needs regardless of type; type-specific fields (event/course/
+// apprenticeship details) aren't scored to keep this simple and honest rather than exhaustive.
+function computeHealth(edited) {
+  const hasAnyDemographic = Object.values(edited.demographic || {}).some(arr => (arr || []).length > 0)
+  const checks = [
+    { label: 'Title', ok: !isBlankish(edited.title) },
+    { label: 'Description', ok: isDescriptionUsable(edited.draftedContent) },
+    { label: 'Deadline', ok: !isBlankish(edited.applicationDeadline) },
+    { label: 'Industry tags', ok: (edited.industryTags || []).length > 0 },
+    { label: 'Demographics', ok: hasAnyDemographic },
+    { label: 'Location', ok: !isBlankish(edited.location) },
+    { label: 'Link', ok: !isBlankish(edited.link) },
+    { label: 'Banner image', ok: !isBlankish(edited.bannerPic) }
+  ]
+  const passed = checks.filter(c => c.ok).length
+  const percent = Math.round((passed / checks.length) * 100)
+  const missing = checks.filter(c => !c.ok).map(c => c.label)
+  let tone = 'poor'
+  if (percent >= 80) tone = 'good'
+  else if (percent >= 50) tone = 'fair'
+  return { percent, missing, tone }
+}
+
+function needsReviewClass(value) {
+  return isBlankish(value) ? 'needs-review' : ''
+}
+
+export default function ReviewDetailPanel({ opportunity, allOpportunities, onSaveDraft, suggestedScheduleDate, scheduleRuleInfo, onClose }) {
   const [edited, setEdited] = useState(() => normalizeOpportunityForEditor(opportunity))
   const [showTagsModal, setShowTagsModal] = useState(false)
   const [activeSection, setActiveSection] = useState('Industry')
@@ -201,6 +245,7 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
   }, [opportunity, suggestedScheduleDate])
 
   const tags = useMemo(() => selectedTagSummary(edited), [edited])
+  const health = useMemo(() => computeHealth(edited), [edited])
 
   const changeField = (field, value) => {
     setEdited(prev => ({ ...prev, [field]: value }))
@@ -439,30 +484,31 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
         <button className="close-modal" onClick={onClose} aria-label="Close">×</button>
 
         <div className="editor-form-grid">
+          <div className="health-bar-wrap">
+            <div className="health-bar-header">
+              <span className={`health-label tone-${health.tone}`}>{health.percent}% complete</span>
+              {health.missing.length > 0 && (
+                <span className="health-missing">Still needs: {health.missing.join(', ')}</span>
+              )}
+            </div>
+            <div className="health-bar-track">
+              <div className={`health-bar-fill tone-${health.tone}`} style={{ width: `${health.percent}%` }} />
+            </div>
+          </div>
+
           <section className="editor-main-form">
-            <p className="breadcrumb">All content  ›  Add new {edited.opportunityType || 'opportunity'}</p>
+            <h4 className="zone-heading">Goes live on the real portal</h4>
+            <p className="zone-subtitle">Everything below is what people will actually see on meet-eric.com.</p>
 
             <label>
-              Video Type
+              Opportunity type
               <select value={edited.opportunityType || ''} onChange={e => changeField('opportunityType', e.target.value)}>
-                <option value="">Select the type of content you want to promote</option>
+                <option value="">Select a type</option>
                 {CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </label>
-
-            <div className="admin-row">
-              <strong>ERIC Admin only:</strong>
-              <label>
-                <input type="checkbox" checked={edited.hideFromFeed || false} onChange={e => changeField('hideFromFeed', e.target.checked)} />
-                Does not display in the feed
-              </label>
-              <label>
-                <input type="checkbox" checked={edited.republish14Days || false} onChange={e => changeField('republish14Days', e.target.checked)} />
-                Republish every 14 days
-              </label>
-            </div>
 
             <label>
               Banner image
@@ -479,14 +525,15 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
               {bannerError && <div className="inline-error">{bannerError}</div>}
             </label>
 
-            <label>
-              Video title
+            <label className={needsReviewClass(edited.title)}>
+              Title
               <input value={edited.title || ''} onChange={e => changeField('title', e.target.value)} />
             </label>
 
-            <label>
-              Short summary
+            <label className={isDescriptionUsable(edited.draftedContent) ? '' : 'needs-review'}>
+              Description
               <textarea rows={6} value={edited.draftedContent || ''} onChange={e => changeField('draftedContent', e.target.value)} />
+              <span className="field-help">This is the public-facing copy — rewrite anything Claude marked "Unclear" or left thin.</span>
             </label>
 
             {edited.opportunityType === 'Course' && (
@@ -603,38 +650,53 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
               <textarea rows={3} value={edited.anythingElseImportant || ''} onChange={e => changeField('anythingElseImportant', e.target.value)} />
             </label>
 
-            <label>
+            <label className={needsReviewClass(edited.applicationDeadline)}>
               Application deadline
               <input
                 type="date"
                 value={normalizeDateInput(edited.applicationDeadline)}
                 onChange={e => changeField('applicationDeadline', e.target.value)}
               />
-              <span className="field-help">Correct this if the extracted deadline looks wrong — it also drives the schedule-date rules below.</span>
+              <span className="field-help">Correct this if the extracted deadline looks wrong — it also drives the schedule-date rules on the right.</span>
             </label>
 
             <label>
-              Optional expiry date:
+              Optional expiry date
               <input type="date" value={normalizeDateInput(edited.expiredDate)} onChange={e => changeField('expiredDate', e.target.value)} />
-              <span className="field-help">Let us know if this content should expire. If not, it'll stay on the ERIC app indefinitely.</span>
+              <span className="field-help">If set, this stops showing on the portal after this date. Leave blank to stay up indefinitely.</span>
             </label>
 
             <label>
-              Schedule post
-              <input
-                type="date"
-                value={normalizeDateInput(edited.schedulePost)}
-                min={scheduleRuleInfo?.minDate || ''}
-                max={scheduleRuleInfo?.maxDate || ''}
-                onChange={e => changeField('schedulePost', e.target.value)}
-              />
-              <span className="field-help">{scheduleRuleInfo?.note || 'Select when this should move to portal publishing.'}</span>
+              Company
+              <input value="ERIC Recommends" readOnly disabled />
+              <span className="field-help">Every opportunity here publishes under ERIC Recommends — this isn't editable.</span>
+            </label>
+
+            <label className={needsReviewClass(edited.location)}>
+              Location
+              <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
+            </label>
+
+            <label>
+              Salary
+              <input placeholder="Optional" value={edited.salary || ''} onChange={e => changeField('salary', e.target.value)} />
+            </label>
+
+            <label className={needsReviewClass(edited.link)}>
+              Link
+              <input value={edited.link || ''} onChange={e => changeField('link', e.target.value)} />
+            </label>
+
+            <label>
+              Publish date
+              <input type="date" value={normalizeDateInput(edited.publishDate)} onChange={e => changeField('publishDate', e.target.value)} />
+              <span className="field-help">Shown on the real portal as this opportunity's post date.</span>
             </label>
 
             {saveError && <div className="inline-error">{saveError}</div>}
 
-            <div className="tags-block">
-              <p className="tag-heading">Please add some relevant hashtags to help our community find this video:</p>
+            <div className={`tags-block ${tags.length === 0 ? 'needs-review' : ''}`}>
+              <p className="tag-heading">Add tags so people can find this opportunity (industry, demographics, keywords):</p>
               <button className="add-tags-btn" onClick={() => setShowTagsModal(true)}>Add Tags</button>
               <div className="chip-grid">
                 {tags.length > 0 ? tags.map(tag => <span key={tag} className="selected-pill">{tag}</span>) : <span className="placeholder">No tags selected yet.</span>}
@@ -648,33 +710,26 @@ export default function ReviewDetailPanel({ opportunity, onSaveDraft, suggestedS
           </section>
 
           <aside className="editor-rail">
+            <h4 className="zone-heading">Portal Parser only</h4>
+            <p className="zone-subtitle">Controls how this app schedules the opportunity — none of this appears on the real portal.</p>
+
             <div className="rail-card">
-              <p><strong>Created at:</strong> {normalizeDateInput(edited.publishDate) || 'TBC'}</p>
-              <p><strong>Status:</strong> In Review</p>
-              <label>
-                Published at
-                <input type="date" value={normalizeDateInput(edited.publishDate)} onChange={e => changeField('publishDate', e.target.value)} />
-              </label>
+              <p><strong>Drafted by AI on:</strong> {edited.draftedDate || 'n/a'}</p>
+              <p><strong>Status:</strong> {edited.schedulePost ? 'Scheduled' : 'In review'}</p>
             </div>
 
             <div className="rail-card">
               <label>
-                Select company
-                <input value="ERIC Recommends" readOnly disabled />
-                <span className="field-help">Every opportunity here publishes under ERIC Recommends — this isn't editable.</span>
+                Send to portal on
+                <ScheduleDatePicker
+                  value={edited.schedulePost || ''}
+                  onChange={date => changeField('schedulePost', date)}
+                  allOpportunities={allOpportunities}
+                  minDate={scheduleRuleInfo?.minDate || ''}
+                  maxDate={scheduleRuleInfo?.maxDate || ''}
+                />
               </label>
-              <label>
-                Location
-                <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
-              </label>
-              <label>
-                Salary
-                <input value={edited.salary || ''} onChange={e => changeField('salary', e.target.value)} />
-              </label>
-              <label>
-                Link
-                <input value={edited.link || ''} onChange={e => changeField('link', e.target.value)} />
-              </label>
+              <span className="field-help">{scheduleRuleInfo?.note || 'This app will publish it to the real portal on this date — leave blank to publish manually instead.'}</span>
             </div>
           </aside>
         </div>

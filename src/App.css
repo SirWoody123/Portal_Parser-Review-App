@@ -425,11 +425,81 @@ strong {
 .editor-form-grid {
   display: grid;
   grid-template-columns: minmax(640px, 1fr) 320px;
+  grid-template-rows: auto 1fr;
   height: 100%;
 }
 
+.health-bar-wrap {
+  grid-column: 1 / -1;
+  padding: 54px 60px 16px 28px;
+  border-bottom: 1px solid #eceef4;
+}
+
+.health-bar-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.health-label {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.health-label.tone-good { color: #1f8a4c; }
+.health-label.tone-fair { color: #b3860a; }
+.health-label.tone-poor { color: #c23b45; }
+
+.health-missing {
+  font-size: 13px;
+  color: #606778;
+}
+
+.health-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #eceef4;
+  overflow: hidden;
+}
+
+.health-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.health-bar-fill.tone-good { background: #26a85f; }
+.health-bar-fill.tone-fair { background: #e2a800; }
+.health-bar-fill.tone-poor { background: #ff637f; }
+
+.zone-heading {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #2a3040;
+}
+
+.zone-subtitle {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #8f96a4;
+  font-weight: 500;
+}
+
+.needs-review {
+  background: #fff4e2 !important;
+  border: 1px solid #f0b429 !important;
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+}
+
 .editor-main-form {
-  padding: 62px 28px 22px;
+  padding: 22px 28px 22px;
   overflow: auto;
   display: grid;
   gap: 14px;
@@ -473,27 +543,6 @@ strong {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
-}
-
-.admin-row {
-  background: #101826;
-  color: #fff;
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: center;
-  font-size: 14px;
-}
-
-.admin-row label {
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .field-help {
@@ -541,8 +590,72 @@ strong {
 .editor-rail {
   background: #fafbfe;
   border-left: 1px solid #eceef3;
-  padding: 68px 18px 22px;
-  overflow: auto;
+  padding: 22px 18px 22px;
+  overflow-y: auto;
+  overflow-x: visible;
+}
+
+.schedule-picker {
+  position: relative;
+}
+
+.schedule-picker-trigger {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #d6dae4;
+  border-radius: 8px;
+  min-height: 42px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 15px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.schedule-picker-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 268px;
+  background: #fff;
+  border: 1px solid #e7e9f0;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 20, 31, 0.2);
+  padding: 14px;
+}
+
+.schedule-picker-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.schedule-picker-popover .calendar-grid {
+  gap: 4px;
+}
+
+.schedule-picker-popover .calendar-cell {
+  min-height: 38px;
+  padding: 4px;
+}
+
+.schedule-picker-popover .calendar-day {
+  font-size: 11px;
+}
+
+.schedule-picker-popover .calendar-count {
+  font-size: 12px;
+}
+
+.schedule-picker-popover .calendar-legend {
+  margin-top: 10px;
+  font-size: 10.5px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .rail-card {
@@ -851,9 +964,11 @@ strong {
   border-color: #f0f2f7;
 }
 
+/* low = plenty of room (green), mid = filling up (amber), high = at/over target (red) —
+   colour intensity tracks how full the day is, not how empty it is. */
 .calendar-cell.low {
-  background: #ffecef;
-  border-color: #ffb8c8;
+  background: #e8fbef;
+  border-color: #7fd49b;
 }
 
 .calendar-cell.mid {
@@ -862,12 +977,17 @@ strong {
 }
 
 .calendar-cell.high {
-  background: #e8fbef;
-  border-color: #7fd49b;
+  background: #ffecef;
+  border-color: #ffb8c8;
 }
 
 .calendar-cell.selected {
   box-shadow: inset 0 0 0 2px #111827;
+}
+
+.calendar-cell:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .calendar-day {
@@ -897,7 +1017,7 @@ strong {
 }
 
 .calendar-legend .dot.low {
-  background: #ff637f;
+  background: #26a85f;
 }
 
 .calendar-legend .dot.mid {
@@ -905,7 +1025,7 @@ strong {
 }
 
 .calendar-legend .dot.high {
-  background: #26a85f;
+  background: #ff637f;
 }
 
 .day-popup-overlay {

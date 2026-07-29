@@ -1,23 +1,20 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import OpportunityList from './components/OpportunityList'
 import ReviewDetailPanel from './components/ReviewDetailPanel'
+import {
+  toISODate,
+  todayDate,
+  monthStartDate,
+  addMonths,
+  DAILY_SCHEDULE_TARGET,
+  buildScheduleCounts,
+  buildCalendarMonths
+} from './calendarUtils'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
 const PAGES = ['Scouted', 'Published', 'Schedule']
-
-function toISODate(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function todayDate() {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
-}
 
 function parseDateOnly(raw) {
   if (!raw) return null
@@ -38,14 +35,6 @@ function parseDateOnly(raw) {
   }
 
   return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
-}
-
-function monthStartDate(date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function addMonths(date, amount) {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1)
 }
 
 function dayDiff(a, b) {
@@ -135,19 +124,6 @@ async function saveScheduledMap(map) {
   }
 }
 
-// Matches the schedule calendar's "low" density threshold — a day under this is considered
-// to still have room before we start pushing opportunities further out.
-const DAILY_SCHEDULE_TARGET = 20
-
-function buildScheduleCounts(rows) {
-  return rows.reduce((acc, opp) => {
-    if ((opp.status || '').toLowerCase() !== 'scheduled') return acc
-    if (!opp.schedulePost) return acc
-    acc[opp.schedulePost] = (acc[opp.schedulePost] || 0) + 1
-    return acc
-  }, {})
-}
-
 function computeSuggestedScheduleDate(opportunity, allRows) {
   const today = todayDate()
   const counts = buildScheduleCounts(allRows)
@@ -213,46 +189,6 @@ function validateScheduleDate(deadlineRaw, scheduleRaw) {
     }
   }
   return { ok: true, message: '' }
-}
-
-function buildCalendarMonths(rows, startMonth, span = 12) {
-  const counts = buildScheduleCounts(rows)
-  const months = []
-
-  for (let index = 0; index < span; index += 1) {
-    const base = addMonths(startMonth, index)
-    const start = monthStartDate(base)
-    const end = new Date(base.getFullYear(), base.getMonth() + 1, 0)
-    const cells = []
-
-    for (let i = 0; i < start.getDay(); i += 1) {
-      cells.push({ empty: true, key: `${toISODate(start)}-empty-start-${i}` })
-    }
-
-    for (let day = 1; day <= end.getDate(); day += 1) {
-      const dt = new Date(base.getFullYear(), base.getMonth(), day)
-      const key = toISODate(dt)
-      const count = counts[key] || 0
-      let density = 'low'
-      if (count >= 30) density = 'high'
-      else if (count >= DAILY_SCHEDULE_TARGET) density = 'mid'
-      cells.push({
-        key,
-        day,
-        count,
-        density,
-        empty: false
-      })
-    }
-
-    months.push({
-      key: toISODate(start),
-      monthLabel: base.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
-      cells
-    })
-  }
-
-  return months
 }
 
 function searchMatch(opp, term) {
@@ -759,6 +695,7 @@ function App() {
       {editing && (
         <ReviewDetailPanel
           opportunity={editing}
+          allOpportunities={opportunities}
           onSaveDraft={handleSaveDraft}
           suggestedScheduleDate={editingSuggestion}
           scheduleRuleInfo={editingRule}
