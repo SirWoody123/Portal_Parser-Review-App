@@ -478,20 +478,14 @@ function App() {
         return merged
       })
 
+      // Store the full edited opportunity, not just a handful of fields — this is the only
+      // place copywriter edits (description, banner, event details, salary, ...) survive a
+      // page reload or a different browser/session. A narrower whitelist here previously meant
+      // edits only lived in this tab's React state and silently reverted to the raw
+      // Claude-drafted content the next time anyone (or the publish-when-due scheduler) loaded
+      // this row from scratch.
       const edited = next.find(opp => opp.rowIndex === rowIndex)
-      scheduleEntry = edited?.schedulePost
-        ? {
-            schedulePost: edited.schedulePost,
-            status: 'scheduled',
-            demographic: edited.demographic,
-            industryTags: edited.industryTags,
-            keywords: edited.keywords,
-            partnerAffiliation: edited.partnerAffiliation,
-            remote: edited.remote,
-            ukWide: edited.ukWide,
-            expiredDate: edited.expiredDate
-          }
-        : null
+      scheduleEntry = edited?.schedulePost ? edited : null
 
       return next
     })
