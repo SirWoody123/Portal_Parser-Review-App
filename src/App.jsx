@@ -14,7 +14,8 @@ import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
-const PAGES = ['Scouted', 'Published', 'Schedule']
+const PAGES = ['Scouted', 'Published', 'Schedule', 'Log', 'Errors']
+const REAL_PORTAL_CONTENT_URL = 'https://meet-eric.com/content/list'
 
 function parseDateOnly(raw) {
   if (!raw) return null
@@ -327,7 +328,12 @@ function validatePublishPayload(opp) {
 function App() {
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  // Each entry: { id, message, rowIndex, timestamp }. rowIndex lets the Errors page jump
+  // straight to the opportunity a failure was about, instead of leaving you to guess.
+  const [errorLog, setErrorLog] = useState([])
+  const [toast, setToast] = useState(null)
+  const [publishLog, setPublishLog] = useState([])
+  const [publishLogLoading, setPublishLogLoading] = useState(false)
   const [editing, setEditing] = useState(null)
   const [page, setPage] = useState('Scouted')
   const [search, setSearch] = useState('')
@@ -340,6 +346,34 @@ function App() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const dueProcessingRef = useRef(false)
 
+  const pushError = (message, rowIndex = null) => {
+    setErrorLog(prev => [{ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, message, rowIndex, timestamp: new Date().toISOString() }, ...prev])
+  }
+  const dismissError = id => {
+    setErrorLog(prev => prev.filter(e => e.id !== id))
+  }
+  const showToast = message => {
+    setToast({ id: Date.now(), message })
+  }
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 5000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  useEffect(() => {
+    if (page !== 'Log') return
+    let cancelled = false
+    setPublishLogLoading(true)
+    fetch(`${API_BASE}/publish-log`)
+      .then(res => res.ok ? res.json() : { entries: [] })
+      .then(data => { if (!cancelled) setPublishLog(data.entries || []) })
+      .catch(() => { if (!cancelled) setPublishLog([]) })
+      .finally(() => { if (!cancelled) setPublishLogLoading(false) })
+    return () => { cancelled = true }
+  }, [page])
+
   useEffect(() => {
     fetchOpportunities()
   }, [])
@@ -347,7 +381,6 @@ function App() {
   const fetchOpportunities = async () => {
     try {
       setLoading(true)
-      setError(null)
       const res = await fetch(`${API_BASE}/queue-review`)
       if (!res.ok) throw new Error('Failed to fetch opportunities')
       const data = await res.json()
@@ -359,7 +392,7 @@ function App() {
       })
       setOpportunities(hydrated)
     } catch (err) {
-      setError(err.message)
+      pushError(err.message)
     } finally {
       setLoading(false)
     }
@@ -372,7 +405,7 @@ function App() {
       const payload = buildPublishPayload(editedOpp)
       const errors = validatePublishPayload(payload)
       if (errors.length > 0) {
-        setError(errors.join(' '))
+        pushError(errors.join(' '), rowIndex)
         return { ok: false, message: errors.join(' ') }
       }
 
@@ -389,9 +422,10 @@ function App() {
         }
         return next
       })
+      showToast(`"${payload.title || 'Opportunity'}" was sent to the real portal.`)
       return { ok: true }
     } catch (err) {
-      setError(err.message)
+      pushError(err.message, rowIndex)
       return { ok: false, message: err.message }
     }
   }
@@ -399,11 +433,10 @@ function App() {
   const handleSaveDraft = async (rowIndex, updatedFields) => {
     const check = validateScheduleDate(updatedFields.applicationDeadline, updatedFields.schedulePost)
     if (!check.ok) {
-      setError(check.message)
+      pushError(check.message, rowIndex)
       return { ok: false, message: check.message }
     }
 
-    setError(null)
     let scheduleEntry = null
 
     setOpportunities(prev => {
@@ -546,33 +579,95 @@ function App() {
                   onClick={() => setPage(label)}
                 >
                   {label}
+                  {label === 'Errors' && errorLog.length > 0 && (
+                    <span className="page-tab-badge">{errorLog.length}</span>
+                  )}
                 </button>
               ))}
             </div>
 
-            <div className="filter-row compact">
-              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type">
-                {types.map(type => (
-                  <option key={type} value={type}>{type === 'all' ? 'Content type' : type}</option>
-                ))}
-              </select>
-              <div className="search-wrap">
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search...."
-                  aria-label="Search opportunities"
-                />
-                <button className="search-button" aria-label="Search">⌕</button>
+            {page !== 'Log' && page !== 'Errors' && (
+              <div className="filter-row compact">
+                <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type">
+                  {types.map(type => (
+                    <option key={type} value={type}>{type === 'all' ? 'Content type' : type}</option>
+                  ))}
+                </select>
+                <div className="search-wrap">
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search...."
+                    aria-label="Search opportunities"
+                  />
+                  <button className="search-button" aria-label="Search">⌕</button>
+                </div>
               </div>
-            </div>
+            )}
           </header>
 
-          <div className="queue-count">{filtered.length} in {page.toLowerCase()}</div>
+          {page === 'Log' ? (
+            <div className="queue-count">{publishLog.length} sent to the real portal</div>
+          ) : page === 'Errors' ? (
+            <div className="queue-count">{errorLog.length} error{errorLog.length === 1 ? '' : 's'}</div>
+          ) : (
+            <div className="queue-count">{filtered.length} in {page.toLowerCase()}</div>
+          )}
 
-          {error && <div className="error">Error: {error}</div>}
+          {errorLog.length > 0 && page !== 'Errors' && (
+            <div className="error dismissible">
+              <span>{errorLog[0].message}</span>
+              <button className="dismiss-error" onClick={() => dismissError(errorLog[0].id)} aria-label="Dismiss">×</button>
+            </div>
+          )}
 
-          {loading ? (
+          {page === 'Log' ? (
+            publishLogLoading ? (
+              <div className="loading spinner-wrap" role="status" aria-live="polite"><span className="spinner" /></div>
+            ) : publishLog.length === 0 ? (
+              <div className="empty">Nothing has been sent to the real portal yet.</div>
+            ) : (
+              <div className="publish-log-list">
+                {publishLog.map(entry => (
+                  <div key={entry.id} className="publish-log-row">
+                    <div>
+                      <div className="publish-log-title">{entry.title || 'Untitled'}</div>
+                      <div className="publish-log-meta">
+                        {entry.opportunityType || 'Opportunity'} · {new Date(entry.publishedAt).toLocaleString('en-GB')} · {entry.via === 'scheduler' ? 'auto (scheduled)' : 'manual'}
+                      </div>
+                    </div>
+                    <a href={REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer" className="publish-log-link">Review on real portal →</a>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : page === 'Errors' ? (
+            errorLog.length === 0 ? (
+              <div className="empty">No errors — nice.</div>
+            ) : (
+              <div className="publish-log-list">
+                {errorLog.map(entry => {
+                  const relatedOpp = entry.rowIndex ? opportunities.find(o => o.rowIndex === entry.rowIndex) : null
+                  return (
+                    <div key={entry.id} className="publish-log-row">
+                      <div>
+                        <div className="publish-log-title">{entry.message}</div>
+                        <div className="publish-log-meta">{new Date(entry.timestamp).toLocaleString('en-GB')}</div>
+                      </div>
+                      <div className="error-row-actions">
+                        {relatedOpp ? (
+                          <button className="publish-log-link as-button" onClick={() => setEditing(relatedOpp)}>View opportunity →</button>
+                        ) : entry.rowIndex ? (
+                          <span className="field-help">No longer available</span>
+                        ) : null}
+                        <button className="dismiss-error" onClick={() => dismissError(entry.id)} aria-label="Dismiss">×</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          ) : loading ? (
             <div className="loading spinner-wrap" role="status" aria-live="polite">
               <span className="spinner" />
             </div>
@@ -701,6 +796,14 @@ function App() {
           scheduleRuleInfo={editingRule}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {toast && (
+        <div className="publish-toast" role="status">
+          <span>{toast.message}</span>
+          <a href={REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer">Review on real portal →</a>
+          <button className="dismiss-error" onClick={() => setToast(null)} aria-label="Dismiss">×</button>
+        </div>
       )}
     </div>
   )

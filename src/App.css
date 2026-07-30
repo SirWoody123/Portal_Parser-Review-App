@@ -179,6 +179,136 @@ strong {
   background: #fff4f8;
 }
 
+.error.dismissible {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.dismiss-error {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+  flex: none;
+}
+
+.dismiss-error:hover {
+  opacity: 1;
+}
+
+.page-tab {
+  position: relative;
+}
+
+.page-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--pink-deep);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.publish-log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.publish-log-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid #eceef3;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.publish-log-title {
+  font-weight: 700;
+  color: #191b25;
+}
+
+.publish-log-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.publish-log-link {
+  flex: none;
+  color: var(--pink-deep);
+  font-weight: 700;
+  font-size: 13.5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.publish-log-link:hover {
+  text-decoration: underline;
+}
+
+.publish-log-link.as-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.error-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+
+.publish-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #191b25;
+  color: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 12px 32px rgba(15, 20, 31, 0.3);
+  font-size: 14px;
+  max-width: 90vw;
+}
+
+.publish-toast a {
+  color: #7fe0a8;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.publish-toast a:hover {
+  text-decoration: underline;
+}
+
+.publish-toast .dismiss-error {
+  color: #fff;
+}
+
 .spinner-wrap {
   display: flex;
   justify-content: center;
