@@ -28,7 +28,6 @@ export default function OpportunityCard({ opportunity, onEdit, onApprove, primar
             <span className="tiny-circle eye">◉</span>
             <span className="tiny-circle pen">✎</span>
           </div>
-          <span className="badge status">AMBASSADOR</span>
         </div>
       </div>
 
