@@ -268,14 +268,9 @@ function buildPublishPayload(opp) {
     // Review"/"scheduled" aren't statuses the real portal's queries match on.
     status: 'live',
     eventDate: normalizeDateForBackend(opp.eventDate),
-    // transformData() also has legacy top-level eventName/eventTime/eventTimeEnd fields
-    // alongside the richer eventDetails object — derive them instead of asking the
-    // copywriter to fill the same info in twice under different labels.
-    ...(opp.eventDetails ? {
-      eventName: opp.eventDetails.eventTitle || opp.title || '',
-      eventTime: opp.eventDetails.eventStartTime || '',
-      eventTimeEnd: opp.eventDetails.eventEndTime || ''
-    } : {}),
+    eventName: opp.title || '',
+    eventTime: opp.eventStartTime || '',
+    eventTimeEnd: opp.eventEndTime || '',
     demographic: {
       age: currentDemo.age || fallbackDemo.age,
       genderSexualPreference: currentDemo.genderSexualPreference || fallbackDemo.genderSexualPreference,
