@@ -4,6 +4,7 @@ import ReviewDetailPanel from './components/ReviewDetailPanel'
 import {
   toISODate,
   todayDate,
+  parseDateOnly,
   monthStartDate,
   addMonths,
   DAILY_SCHEDULE_TARGET,
@@ -16,27 +17,6 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
 const PAGES = ['Scouted', 'Published', 'Schedule', 'Log', 'Errors']
 const REAL_PORTAL_CONTENT_URL = 'https://meet-eric.com/content/list'
-
-function parseDateOnly(raw) {
-  if (!raw) return null
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const [y, m, d] = raw.split('-').map(Number)
-    return new Date(y, m - 1, d)
-  }
-  const dt = new Date(raw)
-  if (Number.isNaN(dt.getTime())) return null
-
-  // JS's Date constructor defaults to year 2001 for strings with no year (e.g. "26 Sep"),
-  // which reads as permanently overdue. Treat that as "year not specified" and assume the
-  // nearest future occurrence of that month/day instead.
-  if (dt.getFullYear() === 2001 && !/2001/.test(raw)) {
-    const today = todayDate()
-    const thisYear = new Date(today.getFullYear(), dt.getMonth(), dt.getDate())
-    return thisYear < today ? new Date(today.getFullYear() + 1, dt.getMonth(), dt.getDate()) : thisYear
-  }
-
-  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
-}
 
 function dayDiff(a, b) {
   const ms = 1000 * 60 * 60 * 24
@@ -260,8 +240,12 @@ function normalizeDateForBackend(raw) {
     const yyyy = dmyMatch[3]
     return `${yyyy}-${mm}-${dd}T00:00:00.000Z`
   }
-  const parsed = new Date(raw)
-  if (Number.isNaN(parsed.getTime())) return ''
+  // Falls back to parseDateOnly() (not a bare `new Date(raw)`) specifically so a year-less
+  // scrape like "19 Aug" doesn't get sent to the real portal as literally 2001 — this is the
+  // function that actually determines what applicationDeadline/eventDate/publishDate the live
+  // opportunity gets, so getting the year right here matters more than anywhere else it's parsed.
+  const parsed = parseDateOnly(raw)
+  if (!parsed) return ''
   return `${toISODate(parsed)}T00:00:00.000Z`
 }
 

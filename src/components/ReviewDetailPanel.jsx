@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ScheduleDatePicker from './ScheduleDatePicker'
+import { parseDateOnly, toISODate } from '../calendarUtils'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -156,9 +157,9 @@ function normalizeOpportunityForEditor(raw) {
 function normalizeDateInput(raw) {
   if (!raw) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
-  const dt = new Date(raw)
-  if (Number.isNaN(dt.getTime())) return ''
-  return dt.toISOString().slice(0, 10)
+  const dt = parseDateOnly(raw)
+  if (!dt) return ''
+  return toISODate(dt)
 }
 
 function toLabel(key) {

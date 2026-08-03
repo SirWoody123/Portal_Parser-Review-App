@@ -13,6 +13,30 @@ export function todayDate() {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate())
 }
 
+// Parses a date that may be a full ISO string ("2026-08-19") or a bare, year-less string as
+// scraped/extracted ("19 Aug") — JS's Date constructor defaults year-less strings to 2001,
+// which every consumer needs corrected the same way or a scraped deadline silently reads as
+// permanently overdue (and, if left uncorrected all the way to publish, gets sent to the real
+// portal as literally the year 2001). Used by card display, the editor's date field, and the
+// publish payload — one implementation so none of them can drift out of sync with the others.
+export function parseDateOnly(raw) {
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+  const dt = new Date(raw)
+  if (Number.isNaN(dt.getTime())) return null
+
+  if (dt.getFullYear() === 2001 && !/2001/.test(raw)) {
+    const today = todayDate()
+    const thisYear = new Date(today.getFullYear(), dt.getMonth(), dt.getDate())
+    return thisYear < today ? new Date(today.getFullYear() + 1, dt.getMonth(), dt.getDate()) : thisYear
+  }
+
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
+}
+
 export function monthStartDate(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

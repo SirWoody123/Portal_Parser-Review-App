@@ -1,7 +1,9 @@
+import { parseDateOnly } from '../calendarUtils'
+
 function formatDate(raw) {
   if (!raw) return 'No deadline'
-  const dt = new Date(raw)
-  if (Number.isNaN(dt.getTime())) return raw
+  const dt = parseDateOnly(raw)
+  if (!dt) return raw
   return dt.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
