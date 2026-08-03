@@ -1,6 +1,6 @@
 import OpportunityCard from './OpportunityCard'
 
-export default function OpportunityList({ opportunities, onEdit, onApprove, primaryLabel }) {
+export default function OpportunityList({ opportunities, onEdit, onApprove, onDelete, primaryLabel }) {
   return (
     <div className="list">
       {opportunities.map(opp => (
@@ -9,6 +9,7 @@ export default function OpportunityList({ opportunities, onEdit, onApprove, prim
           opportunity={opp}
           onEdit={() => onEdit(opp)}
           onApprove={() => onApprove(opp)}
+          onDelete={() => onDelete(opp)}
           primaryLabel={primaryLabel}
         />
       ))}

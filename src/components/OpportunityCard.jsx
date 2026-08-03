@@ -18,7 +18,7 @@ function companyName(opportunity) {
   return opportunity.company || opportunity.companyName || opportunity.organisation || 'ERIC Recommends'
 }
 
-export default function OpportunityCard({ opportunity, onEdit, onApprove, primaryLabel }) {
+export default function OpportunityCard({ opportunity, onEdit, onApprove, onDelete, primaryLabel }) {
   const isScheduled = (opportunity.status || '').toLowerCase().includes('schedule')
   return (
     <article className="card review-card">
@@ -58,8 +58,7 @@ export default function OpportunityCard({ opportunity, onEdit, onApprove, primar
         <div className="card-actions">
           <button className="mini edit" onClick={onEdit}>Edit</button>
           <button className="mini approve" onClick={onApprove}>{primaryLabel || 'Approve'}</button>
-          <button className="icon-action red" aria-label="Reject">↶</button>
-          <button className="icon-action green" aria-label="Restore">↷</button>
+          <button className="icon-action red" aria-label="Delete" title="Delete" onClick={onDelete}>×</button>
         </div>
       </div>
     </article>

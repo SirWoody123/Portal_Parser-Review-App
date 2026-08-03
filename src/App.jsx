@@ -478,6 +478,26 @@ function App() {
     await saveScheduledMap(scheduledMap)
   }
 
+  // Removes an opportunity from the review app entirely — never touches the real portal.
+  // Distinct from publishing: this is for scrapped/test/duplicate rows that should just go away.
+  const handleDelete = async opp => {
+    if (!window.confirm(`Delete "${opp.title || 'this opportunity'}"? It won't be sent to the real portal, and this can't be undone from here.`)) {
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE}/delete-queue-row`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rowIndex: opp.rowIndex })
+      })
+      if (!res.ok) throw new Error('Failed to delete')
+      setOpportunities(prev => prev.filter(o => o.rowIndex !== opp.rowIndex))
+      if (editing?.rowIndex === opp.rowIndex) setEditing(null)
+    } catch (err) {
+      pushError(err.message, opp.rowIndex)
+    }
+  }
+
   useEffect(() => {
     if (dueProcessingRef.current) return
     const due = opportunities.filter(opp => {
@@ -687,6 +707,7 @@ function App() {
                       opportunities={items}
                       onEdit={opp => setEditing(opp)}
                       onApprove={opp => handlePublish(opp.rowIndex, opp)}
+                      onDelete={handleDelete}
                       primaryLabel="Approve"
                     />
                   </section>
@@ -705,6 +726,7 @@ function App() {
                     handlePublish(opp.rowIndex, opp)
                   }
                 }}
+                onDelete={handleDelete}
                 primaryLabel={page === 'Schedule' ? 'Publish now' : 'Approve'}
               />
               {hasMore && (
