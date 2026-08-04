@@ -37,6 +37,27 @@ export function parseDateOnly(raw) {
   return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
 }
 
+// The real portal's Event start/end time fields are native time pickers expecting strict
+// 24-hour "HH:MM" — a bare "Invalid date" is what a copywriter sees if we ever send it
+// something like "7:15am" (Claude's extraction used to produce that shape). Converts whatever
+// was extracted or previously typed into that format; returns '' rather than guessing if it
+// can't be parsed. Used by both the editor's display and the publish payload, so a value that
+// only ever gets displayed (never re-typed) still gets fixed before publish.
+export function normalizeTimeInput(raw) {
+  if (!raw) return ''
+  const trimmed = String(raw).trim()
+  if (/^\d{2}:\d{2}$/.test(trimmed)) return trimmed
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*([ap]\.?m\.?)?$/i)
+  if (!match) return ''
+  let hours = Number(match[1])
+  const minutes = match[2]
+  const meridiem = (match[3] || '').toLowerCase().replace(/\./g, '')
+  if (meridiem === 'pm' && hours !== 12) hours += 12
+  if (meridiem === 'am' && hours === 12) hours = 0
+  if (hours > 23) return ''
+  return `${String(hours).padStart(2, '0')}:${minutes}`
+}
+
 export function monthStartDate(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

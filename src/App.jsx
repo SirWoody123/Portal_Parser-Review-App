@@ -9,7 +9,8 @@ import {
   addMonths,
   DAILY_SCHEDULE_TARGET,
   buildScheduleCounts,
-  buildCalendarMonths
+  buildCalendarMonths,
+  normalizeTimeInput
 } from './calendarUtils'
 import './App.css'
 
@@ -269,8 +270,8 @@ function buildPublishPayload(opp) {
     status: 'live',
     eventDate: normalizeDateForBackend(opp.eventDate),
     eventName: opp.title || '',
-    eventTime: opp.eventStartTime || '',
-    eventTimeEnd: opp.eventEndTime || '',
+    eventTime: normalizeTimeInput(opp.eventStartTime),
+    eventTimeEnd: normalizeTimeInput(opp.eventEndTime),
     demographic: {
       age: currentDemo.age || fallbackDemo.age,
       genderSexualPreference: currentDemo.genderSexualPreference || fallbackDemo.genderSexualPreference,

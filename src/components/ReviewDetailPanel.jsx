@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ScheduleDatePicker from './ScheduleDatePicker'
-import { parseDateOnly, toISODate } from '../calendarUtils'
+import { parseDateOnly, toISODate, normalizeTimeInput } from '../calendarUtils'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -566,11 +566,11 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                 <div className="two-col">
                   <label>
                     Event start time
-                    <input placeholder="e.g. 6:00pm" value={edited.eventStartTime || ''} onChange={e => changeField('eventStartTime', e.target.value)} />
+                    <input type="time" value={normalizeTimeInput(edited.eventStartTime)} onChange={e => changeField('eventStartTime', e.target.value)} />
                   </label>
                   <label>
                     Event end time
-                    <input placeholder="e.g. 9:00pm" value={edited.eventEndTime || ''} onChange={e => changeField('eventEndTime', e.target.value)} />
+                    <input type="time" value={normalizeTimeInput(edited.eventEndTime)} onChange={e => changeField('eventEndTime', e.target.value)} />
                   </label>
                 </div>
               </div>
