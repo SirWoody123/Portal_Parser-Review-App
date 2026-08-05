@@ -58,6 +58,37 @@ export function normalizeTimeInput(raw) {
   return `${String(hours).padStart(2, '0')}:${minutes}`
 }
 
+// The UK is only ever on GMT (+0) or BST (+1) — checked at noon UTC on the given date to
+// sidestep the 1am transition-day edge case (DST changes happen at 1am UK time).
+function londonUtcOffsetMinutes(dateOnlyISO) {
+  const noonUTC = new Date(`${dateOnlyISO}T12:00:00.000Z`)
+  const londonHour = Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hour: 'numeric', hour12: false,
+  }).format(noonUTC))
+  return londonHour === 13 ? 60 : 0
+}
+
+// Combines a date with a "HH:MM" Europe/London wall-clock time into a full ISO instant.
+// Live-verified this is what the real portal's Event start/end time fields actually need — a
+// bare "HH:MM" string renders as "Invalid date" there even when syntactically valid 24-hour
+// (confirmed on a real published row). Watching the real portal's own time picker write a
+// value directly showed it always stores a *full* timestamp — using today's date with
+// whichever hour/minute was picked — so only the time-of-day portion is actually meaningful to
+// it, but it still needs a genuinely parseable full instant, not a bare time. Takes a raw date
+// (any format parseDateOnly() accepts) rather than a pre-normalized one, since the client only
+// ever has the editor's own state to work from.
+export function combineLondonDateAndTime(dateRaw, timeRaw) {
+  const date = parseDateOnly(dateRaw)
+  const time = normalizeTimeInput(timeRaw)
+  if (!date || !time) return ''
+  const dateOnlyISO = toISODate(date)
+  const [hh, mm] = time.split(':').map(Number)
+  const offsetMinutes = londonUtcOffsetMinutes(dateOnlyISO)
+  const instant = new Date(`${dateOnlyISO}T00:00:00.000Z`)
+  instant.setUTCMinutes(instant.getUTCMinutes() + hh * 60 + mm - offsetMinutes)
+  return instant.toISOString()
+}
+
 export function monthStartDate(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

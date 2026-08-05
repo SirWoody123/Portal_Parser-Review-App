@@ -10,7 +10,7 @@ import {
   DAILY_SCHEDULE_TARGET,
   buildScheduleCounts,
   buildCalendarMonths,
-  normalizeTimeInput
+  combineLondonDateAndTime
 } from './calendarUtils'
 import './App.css'
 
@@ -270,8 +270,8 @@ function buildPublishPayload(opp) {
     status: 'live',
     eventDate: normalizeDateForBackend(opp.eventDate),
     eventName: opp.title || '',
-    eventTime: normalizeTimeInput(opp.eventStartTime),
-    eventTimeEnd: normalizeTimeInput(opp.eventEndTime),
+    eventTime: combineLondonDateAndTime(opp.eventDate, opp.eventStartTime),
+    eventTimeEnd: combineLondonDateAndTime(opp.eventDate, opp.eventEndTime),
     demographic: {
       age: currentDemo.age || fallbackDemo.age,
       genderSexualPreference: currentDemo.genderSexualPreference || fallbackDemo.genderSexualPreference,
