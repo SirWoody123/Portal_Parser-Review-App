@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ScheduleDatePicker from './ScheduleDatePicker'
+import ImageBankPicker from './ImageBankPicker'
 import { parseDateOnly, toISODate, normalizeTimeInput } from '../calendarUtils'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -234,6 +235,7 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
   const [saveError, setSaveError] = useState('')
   const [bannerUploading, setBannerUploading] = useState(false)
   const [bannerError, setBannerError] = useState('')
+  const [showImageBank, setShowImageBank] = useState(false)
 
   useEffect(() => {
     const normalized = normalizeOpportunityForEditor(opportunity)
@@ -506,12 +508,21 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
               {edited.bannerPic && (
                 <img className="banner-preview" src={edited.bannerPic} alt="Banner preview" />
               )}
-              <input
-                type="file"
-                accept="image/*"
-                disabled={bannerUploading}
-                onChange={e => handleBannerUpload(e.target.files?.[0])}
-              />
+              <div className="banner-upload-row">
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={bannerUploading}
+                  onChange={e => handleBannerUpload(e.target.files?.[0])}
+                />
+                <button
+                  type="button"
+                  className="ghost image-bank-open-btn"
+                  onClick={() => setShowImageBank(true)}
+                >
+                  Browse image bank
+                </button>
+              </div>
               {bannerUploading && <span className="field-help">Uploading...</span>}
               {bannerError && <div className="inline-error">{bannerError}</div>}
             </label>
@@ -702,6 +713,13 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
               </section>
             </div>
           </div>
+        )}
+
+        {showImageBank && (
+          <ImageBankPicker
+            onSelect={url => changeField('bannerPic', url)}
+            onClose={() => setShowImageBank(false)}
+          />
         )}
       </div>
     </div>
