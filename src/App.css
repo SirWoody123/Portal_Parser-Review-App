@@ -614,6 +614,33 @@ strong {
   padding: 10px 12px 12px;
 }
 
+.link-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.link-with-action input {
+  flex: 1;
+}
+
+.open-link-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #d5dae3;
+  background: #fff;
+  color: #232a39;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.open-link-btn:hover {
+  background: #f4f6f9;
+}
+
 .editor-main-form {
   padding: 22px 28px 22px;
   overflow: auto;

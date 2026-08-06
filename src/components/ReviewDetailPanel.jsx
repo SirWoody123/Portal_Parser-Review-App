@@ -615,7 +615,19 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
 
             <label className={needsReviewClass(edited.link)}>
               Link
-              <input value={edited.link || ''} onChange={e => changeField('link', e.target.value)} />
+              <div className="link-with-action">
+                <input value={edited.link || ''} onChange={e => changeField('link', e.target.value)} />
+                {edited.link && (
+                  <a
+                    className="open-link-btn"
+                    href={edited.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open link ↗
+                  </a>
+                )}
+              </div>
             </label>
 
             <label>
