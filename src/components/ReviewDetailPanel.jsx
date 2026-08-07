@@ -235,6 +235,8 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
   const [saveError, setSaveError] = useState('')
   const [bannerUploading, setBannerUploading] = useState(false)
   const [bannerError, setBannerError] = useState('')
+  const [titleGenerating, setTitleGenerating] = useState(false)
+  const [titleError, setTitleError] = useState('')
   const [showImageBank, setShowImageBank] = useState(false)
 
   useEffect(() => {
@@ -278,6 +280,32 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
       setBannerError(err.message || 'Failed to upload banner image.')
     } finally {
       setBannerUploading(false)
+    }
+  }
+
+  const handleGenerateTitle = async () => {
+    setTitleError('')
+    setTitleGenerating(true)
+    try {
+      const res = await fetch(`${API_BASE}/generate-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: edited.draftedContent,
+          opportunityType: edited.opportunityType,
+          location: edited.location,
+          salary: edited.salary,
+          anythingElseImportant: edited.anythingElseImportant,
+          industry: edited.industry
+        })
+      })
+      if (!res.ok) throw new Error('Failed to generate a title')
+      const data = await res.json()
+      changeField('title', data.title)
+    } catch (err) {
+      setTitleError(err.message || 'Failed to generate a title.')
+    } finally {
+      setTitleGenerating(false)
     }
   }
 
@@ -529,7 +557,19 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
 
             <label className={needsReviewClass(edited.title)}>
               Title
-              <input value={edited.title || ''} onChange={e => changeField('title', e.target.value)} />
+              <div className="title-with-action">
+                <input value={edited.title || ''} onChange={e => changeField('title', e.target.value)} />
+                <button
+                  type="button"
+                  className="ghost ai-title-btn"
+                  onClick={handleGenerateTitle}
+                  disabled={titleGenerating || !isDescriptionUsable(edited.draftedContent)}
+                  title={!isDescriptionUsable(edited.draftedContent) ? 'Needs a usable description first' : 'Generate a fun title from this opportunity’s info'}
+                >
+                  {titleGenerating ? 'Thinking...' : 'Replace with AI title'}
+                </button>
+              </div>
+              {titleError && <div className="inline-error">{titleError}</div>}
             </label>
 
             <label className={isDescriptionUsable(edited.draftedContent) ? '' : 'needs-review'}>

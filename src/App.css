@@ -831,6 +831,26 @@ strong {
   flex-wrap: wrap;
 }
 
+.title-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.title-with-action input {
+  flex: 1;
+}
+
+.ai-title-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ai-title-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .image-bank-open-btn {
   white-space: nowrap;
 }
