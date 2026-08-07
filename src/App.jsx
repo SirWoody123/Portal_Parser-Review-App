@@ -270,10 +270,14 @@ function buildPublishPayload(opp) {
     // "live" — the value this pipeline had been setting. "live" isn't in the real portal's own
     // status vocabulary at all; content search-visible in the consumer app is "published".
     status: 'published',
-    eventDate: normalizeDateForBackend(opp.eventDate),
+    // A one-off event's date and its application deadline are almost always the same day —
+    // fall back to the deadline whenever extraction didn't land a separate event date, rather
+    // than publishing a blank eventDate/eventTime (which threw "Invalid time value" on the
+    // consumer app when it tried to format an empty date).
+    eventDate: normalizeDateForBackend(opp.eventDate || opp.applicationDeadline),
     eventName: opp.title || '',
-    eventTime: combineLondonDateAndTime(opp.eventDate, opp.eventStartTime),
-    eventTimeEnd: combineLondonDateAndTime(opp.eventDate, opp.eventEndTime),
+    eventTime: combineLondonDateAndTime(opp.eventDate || opp.applicationDeadline, opp.eventStartTime),
+    eventTimeEnd: combineLondonDateAndTime(opp.eventDate || opp.applicationDeadline, opp.eventEndTime),
     demographic: {
       age: currentDemo.age || fallbackDemo.age,
       genderSexualPreference: currentDemo.genderSexualPreference || fallbackDemo.genderSexualPreference,
