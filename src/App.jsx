@@ -265,9 +265,11 @@ function buildPublishPayload(opp) {
     schedulePost: opp.schedulePost || '',
     remote: toBool(opp.remote),
     ukWide: toBool(opp.ukWide),
-    // Publishing means "send it live" in this pipeline — workflow labels like "Ready for
-    // Review"/"scheduled" aren't statuses the real portal's queries match on.
-    status: 'live',
+    // Live-sampled a confirmed-searchable real opportunity (one the user manually resaved
+    // through the real portal's own admin form) and found its status was "published", not
+    // "live" — the value this pipeline had been setting. "live" isn't in the real portal's own
+    // status vocabulary at all; content search-visible in the consumer app is "published".
+    status: 'published',
     eventDate: normalizeDateForBackend(opp.eventDate),
     eventName: opp.title || '',
     eventTime: combineLondonDateAndTime(opp.eventDate, opp.eventStartTime),
