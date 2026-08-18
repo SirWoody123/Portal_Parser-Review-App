@@ -25,6 +25,15 @@ export function parseDateOnly(raw) {
     const [y, m, d] = raw.split('-').map(Number)
     return new Date(y, m - 1, d)
   }
+  // DD/MM/YYYY (what Claude's extraction outputs for eventDate) — handled explicitly rather
+  // than falling through to the bare `new Date()` below, which treats slash-separated dates as
+  // US-style MM/DD/YYYY: day-of-month <= 12 silently swaps month/day (5/9 read as May 9 instead
+  // of 5 Sep), and day-of-month > 12 fails to parse at all and renders as blank.
+  const dmyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (dmyMatch) {
+    const [, dd, mm, yyyy] = dmyMatch
+    return new Date(Number(yyyy), Number(mm) - 1, Number(dd))
+  }
   const dt = new Date(raw)
   if (Number.isNaN(dt.getTime())) return null
 

@@ -647,6 +647,7 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                   <label>
                     Event end time
                     <input type="time" value={normalizeTimeInput(edited.eventEndTime)} onChange={e => changeField('eventEndTime', e.target.value)} />
+                    <span className="field-help">Optional — leave blank if it doesn't apply, e.g. an event with multiple separate sessions.</span>
                   </label>
                 </div>
               </div>
