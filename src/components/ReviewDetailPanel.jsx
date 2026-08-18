@@ -37,6 +37,9 @@ const INDUSTRY_TAGS = [
   'UX/UI design', 'VFX', 'videography', 'visual art', 'writing'
 ]
 
+// The real portal truncates/rejects titles past this length.
+const TITLE_MAX_LENGTH = 50
+
 const POPULAR_KEYWORDS = ['Advice', "CV's & Portfolios", 'Money & Finance', 'Interviews', 'Networking', 'Mentoring']
 const PARTNERS = ['UK Creative Festival']
 const SECTIONS = ['Industry', 'Demographic', 'Keywords', 'Audience location', 'Partner affiliation']
@@ -210,7 +213,7 @@ function computeHealth(edited) {
     { label: 'Deadline', ok: !isBlankish(edited.applicationDeadline) },
     { label: 'Industry tags', ok: (edited.industryTags || []).length > 0 },
     { label: 'Demographics', ok: hasAnyDemographic },
-    { label: 'Location', ok: !isBlankish(edited.location) },
+    { label: 'Location', ok: edited.ukWide || !isBlankish(edited.location) },
     { label: 'Link', ok: !isBlankish(edited.link) },
     { label: 'Banner image', ok: !isBlankish(edited.bannerPic) }
   ]
@@ -392,7 +395,14 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                   <h4>{toLabel(group)}</h4>
                   <div className="select-shell">
                     {selected.length > 0 ? selected.map(item => (
-                      <span key={item} className="selected-pill">{item} ×</span>
+                      <button
+                        key={item}
+                        type="button"
+                        className="selected-pill removable"
+                        onClick={() => updateDemographic(group, item, false)}
+                      >
+                        {item} ×
+                      </button>
                     )) : <span className="placeholder">Select...</span>}
                   </div>
                   <div className="chip-grid">
@@ -471,11 +481,23 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
             </label>
             <label>
               Is this a UK-wide opportunity?
-              <select value={edited.ukWide ? 'Yes' : 'No'} onChange={e => changeField('ukWide', e.target.value === 'Yes')}>
+              <select
+                value={edited.ukWide ? 'Yes' : 'No'}
+                onChange={e => {
+                  const isUkWide = e.target.value === 'Yes'
+                  setEdited(prev => ({ ...prev, ukWide: isUkWide, location: isUkWide ? '' : prev.location }))
+                }}
+              >
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
               </select>
             </label>
+            {!edited.ukWide && (
+              <label className={needsReviewClass(edited.location)}>
+                Location
+                <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
+              </label>
+            )}
           </div>
         </>
       )
@@ -569,12 +591,15 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                   {titleGenerating ? 'Thinking...' : 'Replace with AI title'}
                 </button>
               </div>
+              <span className={`field-help char-count ${(edited.title || '').length > TITLE_MAX_LENGTH ? 'over-limit' : ''}`}>
+                {(edited.title || '').length}/{TITLE_MAX_LENGTH} characters — the real portal cuts titles off past this length
+              </span>
               {titleError && <div className="inline-error">{titleError}</div>}
             </label>
 
             <label className={isDescriptionUsable(edited.draftedContent) ? '' : 'needs-review'}>
               Description
-              <textarea rows={6} value={edited.draftedContent || ''} onChange={e => changeField('draftedContent', e.target.value)} />
+              <textarea rows={12} value={edited.draftedContent || ''} onChange={e => changeField('draftedContent', e.target.value)} />
               <span className="field-help">This is the public-facing copy — rewrite anything Claude marked "Unclear" or left thin.</span>
             </label>
 
@@ -643,20 +668,9 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
             </label>
 
             <label>
-              Optional expiry date
-              <input type="date" value={normalizeDateInput(edited.expiredDate)} onChange={e => changeField('expiredDate', e.target.value)} />
-              <span className="field-help">If set, this stops showing on the portal after this date. Leave blank to stay up indefinitely.</span>
-            </label>
-
-            <label>
               Company
               <input value="ERIC Recommends" readOnly disabled />
               <span className="field-help">Every opportunity here publishes under ERIC Recommends — this isn't editable.</span>
-            </label>
-
-            <label className={needsReviewClass(edited.location)}>
-              Location
-              <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
             </label>
 
             <label>

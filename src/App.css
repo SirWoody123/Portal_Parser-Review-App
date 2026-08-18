@@ -661,6 +661,7 @@ strong {
 .editor-main-form textarea,
 .editor-rail input,
 .audience-grid select,
+.audience-grid input,
 .keyword-input {
   border: 1px solid #d6dae4;
   border-radius: 8px;
@@ -692,6 +693,11 @@ strong {
   color: #606778;
   font-size: 13px;
   font-weight: 500;
+}
+
+.char-count.over-limit {
+  color: #c0392b;
+  font-weight: 700;
 }
 
 .tags-block {
@@ -1058,6 +1064,16 @@ strong {
   color: #2d3341;
   padding: 6px 8px;
   font-size: 14px;
+}
+
+.selected-pill.removable {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.selected-pill.removable:hover {
+  background: #e4e8f0;
 }
 
 .chip-grid {
