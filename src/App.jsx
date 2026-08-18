@@ -17,7 +17,23 @@ import './App.css'
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const ITEMS_PER_BATCH = 8
 const PAGES = ['Scouted', 'Published', 'Schedule', 'Log', 'Errors']
-const REAL_PORTAL_CONTENT_URL = 'https://meet-eric.com/content/list'
+// The admin portal actually lives at the .co domain, not .com (.com is a different site — it
+// serves the marketing homepage fine but 404s on every /content/* route, including this one).
+const REAL_PORTAL_BASE_URL = 'https://meet-eric.co'
+const REAL_PORTAL_CONTENT_URL = `${REAL_PORTAL_BASE_URL}/content/list`
+
+// Mirrors transformData()'s type resolution (api-server.cjs) — Events are a separate top-level
+// content type on the real portal, everything else is "announcements". Only used as a fallback
+// for publishLog entries written before contentTypeSegment was stored directly.
+function resolveContentTypeSegment(opportunityType) {
+  return opportunityType === 'Event' ? 'events' : 'announcements'
+}
+
+function buildRealPortalEditUrl(entry) {
+  if (!entry?.masterPortalDocId) return null
+  const segment = entry.contentTypeSegment || resolveContentTypeSegment(entry.opportunityType)
+  return `${REAL_PORTAL_BASE_URL}/content/edit/${segment}/${entry.masterPortalDocId}`
+}
 
 function dayDiff(a, b) {
   const ms = 1000 * 60 * 60 * 24
@@ -529,6 +545,24 @@ function App() {
     return matchesType && searchMatch(opp, search)
   })
 
+  // Queue rows disappear from `opportunities` the moment they publish (Status becomes "Drafted"
+  // in the sheet, which /queue-review never returns) — so the Published page can't be sourced
+  // from `opportunities` like the pages above. publishLog is already ordered newest-first, so
+  // deduping by rowIndex (keeping the first occurrence) gives the latest publish per opportunity.
+  const publishedOpportunities = useMemo(() => {
+    const seen = new Set()
+    return publishLog.filter(entry => {
+      if (seen.has(entry.rowIndex)) return false
+      seen.add(entry.rowIndex)
+      return true
+    })
+  }, [publishLog])
+
+  const publishedFiltered = publishedOpportunities.filter(entry => {
+    const matchesType = typeFilter === 'all' || entry.opportunityType === typeFilter
+    return matchesType && searchMatch(entry, search)
+  })
+
   const visible = filtered.slice(0, visibleCount)
 
   const scoutedGroups = useMemo(() => {
@@ -616,6 +650,8 @@ function App() {
             <div className="queue-count">{publishLog.length} sent to the real portal</div>
           ) : page === 'Errors' ? (
             <div className="queue-count">{errorLog.length} error{errorLog.length === 1 ? '' : 's'}</div>
+          ) : page === 'Published' ? (
+            <div className="queue-count">{publishedFiltered.length} in published</div>
           ) : (
             <div className="queue-count">{filtered.length} in {page.toLowerCase()}</div>
           )}
@@ -642,7 +678,25 @@ function App() {
                         {entry.opportunityType || 'Opportunity'} · {new Date(entry.publishedAt).toLocaleString('en-GB')} · {entry.via === 'scheduler' ? 'auto (scheduled)' : 'manual'}
                       </div>
                     </div>
-                    <a href={REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer" className="publish-log-link">Review on real portal →</a>
+                    <a href={buildRealPortalEditUrl(entry) || REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer" className="publish-log-link">Review on real portal →</a>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : page === 'Published' ? (
+            publishedFiltered.length === 0 ? (
+              <div className="empty">Nothing published yet.</div>
+            ) : (
+              <div className="publish-log-list">
+                {publishedFiltered.map(entry => (
+                  <div key={entry.rowIndex} className="publish-log-row">
+                    <div>
+                      <div className="publish-log-title">{entry.title || 'Untitled'}</div>
+                      <div className="publish-log-meta">
+                        {entry.opportunityType || 'Opportunity'} · Published {new Date(entry.publishedAt).toLocaleString('en-GB')}
+                      </div>
+                    </div>
+                    <a href={buildRealPortalEditUrl(entry) || REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer" className="publish-log-link">Review on real portal →</a>
                   </div>
                 ))}
               </div>
