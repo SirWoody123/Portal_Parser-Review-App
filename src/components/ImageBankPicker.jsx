@@ -2,49 +2,47 @@ import { useEffect, useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
-// Two-step picker over the team's shared Drive image bank: pick a category, then pick an
-// image. Selecting an image downloads it server-side and re-uploads it through the same
-// Storage path a manual banner upload uses, so bannerPic always looks the same regardless of
-// where the image came from.
+// Folder browser over the team's shared Drive image bank. The bank spans every year's image
+// bank folder, and their internal structure isn't consistent — some go straight to images,
+// some have a category layer first, one has both — so this navigates like a generic folder
+// browser (breadcrumb + back) rather than assuming a fixed two-level shape. Selecting an image
+// downloads it server-side and re-uploads it through the same Storage path a manual banner
+// upload uses, so bannerPic always looks the same regardless of where the image came from.
 export default function ImageBankPicker({ onSelect, onClose }) {
-  const [categories, setCategories] = useState([])
-  const [categoriesLoading, setCategoriesLoading] = useState(true)
-  const [categoriesError, setCategoriesError] = useState('')
-
-  const [activeCategory, setActiveCategory] = useState(null)
+  const [path, setPath] = useState([]) // stack of {id, name}; empty = root
+  const [folders, setFolders] = useState([])
   const [images, setImages] = useState([])
-  const [imagesLoading, setImagesLoading] = useState(false)
-  const [imagesError, setImagesError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [selectingId, setSelectingId] = useState(null)
   const [selectError, setSelectError] = useState('')
 
-  useEffect(() => {
-    setCategoriesLoading(true)
-    fetch(`${API_BASE}/image-bank/categories`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load categories')
-        return res.json()
-      })
-      .then(data => setCategories(data.categories || []))
-      .catch(err => setCategoriesError(err.message || 'Failed to load categories'))
-      .finally(() => setCategoriesLoading(false))
-  }, [])
+  const current = path[path.length - 1] || null
 
-  const openCategory = category => {
-    setActiveCategory(category)
+  useEffect(() => {
+    setLoading(true)
+    setError('')
     setImages([])
-    setImagesError('')
-    setImagesLoading(true)
-    fetch(`${API_BASE}/image-bank/categories/${category.id}/images`)
+    const url = current
+      ? `${API_BASE}/image-bank/categories/${current.id}/images`
+      : `${API_BASE}/image-bank/categories`
+    fetch(url)
       .then(res => {
-        if (!res.ok) throw new Error('Failed to load images')
+        if (!res.ok) throw new Error('Failed to load image bank')
         return res.json()
       })
-      .then(data => setImages(data.images || []))
-      .catch(err => setImagesError(err.message || 'Failed to load images'))
-      .finally(() => setImagesLoading(false))
-  }
+      .then(data => {
+        setFolders(current ? (data.folders || []) : (data.categories || []))
+        setImages(current ? (data.images || []) : [])
+      })
+      .catch(err => setError(err.message || 'Failed to load image bank'))
+      .finally(() => setLoading(false))
+  }, [current])
+
+  const openFolder = folder => setPath(prev => [...prev, folder])
+  const goBack = () => setPath(prev => prev.slice(0, -1))
+  const goToCrumb = index => setPath(prev => prev.slice(0, index + 1))
 
   const selectImage = async image => {
     setSelectError('')
@@ -71,35 +69,42 @@ export default function ImageBankPicker({ onSelect, onClose }) {
       <div className="tags-modal-surface image-bank-surface">
         <button className="close-modal" onClick={onClose} aria-label="Close">×</button>
 
-        {!activeCategory ? (
-          <section className="editor-main image-bank-main">
-            <h5 className="modal-title">Choose a category from the image bank:</h5>
-            {categoriesLoading && <p className="field-help">Loading categories...</p>}
-            {categoriesError && <div className="inline-error">{categoriesError}</div>}
+        <section className="editor-main image-bank-main">
+          <div className="image-bank-header-row">
+            {path.length > 0 && <button className="ghost image-bank-back" onClick={goBack}>← Back</button>}
+            <div className="image-bank-breadcrumb">
+              <button className="image-bank-crumb" onClick={() => setPath([])}>Image bank</button>
+              {path.map((crumb, i) => (
+                <span key={crumb.id}>
+                  {' / '}
+                  <button className="image-bank-crumb" onClick={() => goToCrumb(i)}>{crumb.name}</button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {loading && <p className="field-help">Loading...</p>}
+          {error && <div className="inline-error">{error}</div>}
+          {selectError && <div className="inline-error">{selectError}</div>}
+          {!loading && !error && folders.length === 0 && images.length === 0 && (
+            <p className="field-help">Nothing in this folder.</p>
+          )}
+
+          {folders.length > 0 && (
             <div className="image-bank-category-grid">
-              {categories.map(category => (
+              {folders.map(folder => (
                 <button
-                  key={category.id}
+                  key={folder.id}
                   className="image-bank-category-tile"
-                  onClick={() => openCategory(category)}
+                  onClick={() => openFolder(folder)}
                 >
-                  {category.name}
+                  {folder.name}
                 </button>
               ))}
             </div>
-          </section>
-        ) : (
-          <section className="editor-main image-bank-main">
-            <div className="image-bank-header-row">
-              <button className="ghost image-bank-back" onClick={() => setActiveCategory(null)}>← Categories</button>
-              <h5 className="modal-title">{activeCategory.name}</h5>
-            </div>
-            {imagesLoading && <p className="field-help">Loading images...</p>}
-            {imagesError && <div className="inline-error">{imagesError}</div>}
-            {selectError && <div className="inline-error">{selectError}</div>}
-            {!imagesLoading && !imagesError && images.length === 0 && (
-              <p className="field-help">No images in this category.</p>
-            )}
+          )}
+
+          {images.length > 0 && (
             <div className="image-bank-image-grid">
               {images.map(image => (
                 <button
@@ -114,8 +119,8 @@ export default function ImageBankPicker({ onSelect, onClose }) {
                 </button>
               ))}
             </div>
-          </section>
-        )}
+          )}
+        </section>
       </div>
     </div>
   )
