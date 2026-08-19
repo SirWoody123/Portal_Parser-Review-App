@@ -700,6 +700,20 @@ strong {
   font-weight: 700;
 }
 
+.location-check-recognized {
+  color: #1a7f4c;
+  font-weight: 600;
+}
+
+.location-check-unrecognized {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.location-check-virtual {
+  color: #606778;
+}
+
 .tags-block {
   border: 1px solid #eceef4;
   border-radius: 10px;

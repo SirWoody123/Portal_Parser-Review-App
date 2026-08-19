@@ -241,6 +241,7 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
   const [titleGenerating, setTitleGenerating] = useState(false)
   const [titleError, setTitleError] = useState('')
   const [showImageBank, setShowImageBank] = useState(false)
+  const [locationCheck, setLocationCheck] = useState({ status: 'idle', formattedAddress: null, checkedValue: null })
 
   useEffect(() => {
     const normalized = normalizeOpportunityForEditor(opportunity)
@@ -311,6 +312,33 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
       setTitleGenerating(false)
     }
   }
+
+  const checkLocation = async value => {
+    const trimmed = (value || '').trim()
+    if (!trimmed) {
+      setLocationCheck({ status: 'idle', formattedAddress: null, checkedValue: null })
+      return
+    }
+    setLocationCheck({ status: 'checking', formattedAddress: null, checkedValue: trimmed })
+    try {
+      const res = await fetch(`${API_BASE}/geocode-check?location=${encodeURIComponent(trimmed)}`)
+      const data = await res.json()
+      setLocationCheck({
+        status: data.recognized ? (data.isVirtual ? 'virtual' : 'recognized') : 'unrecognized',
+        formattedAddress: data.formattedAddress || null,
+        checkedValue: trimmed
+      })
+    } catch {
+      setLocationCheck({ status: 'error', formattedAddress: null, checkedValue: trimmed })
+    }
+  }
+
+  useEffect(() => {
+    if (activeSection !== 'Audience location') return
+    const trimmed = (edited.location || '').trim()
+    if (trimmed && locationCheck.checkedValue !== trimmed) checkLocation(trimmed)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection])
 
   const updateDemographic = (group, value, checked) => {
     const current = edited.demographic?.[group] || []
@@ -495,7 +523,24 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
             {!edited.ukWide && (
               <label className={needsReviewClass(edited.location)}>
                 Location
-                <input value={edited.location || ''} onChange={e => changeField('location', e.target.value)} />
+                <input
+                  value={edited.location || ''}
+                  onChange={e => changeField('location', e.target.value)}
+                  onBlur={e => checkLocation(e.target.value)}
+                />
+                {edited.location && locationCheck.checkedValue === edited.location.trim() && (
+                  <span className={`field-help location-check location-check-${locationCheck.status}`}>
+                    {locationCheck.status === 'checking' && 'Checking...'}
+                    {locationCheck.status === 'recognized' && (
+                      locationCheck.formattedAddress
+                        ? `✓ Recognized: ${locationCheck.formattedAddress}`
+                        : '✓ Recognized as a place'
+                    )}
+                    {locationCheck.status === 'virtual' && 'Treated as remote/UK-wide — no map pin needed here.'}
+                    {locationCheck.status === 'unrecognized' && "⚠ Couldn't confirm this is a real place — try being more specific, e.g. add the town or city."}
+                    {locationCheck.status === 'error' && "Couldn't check this location right now."}
+                  </span>
+                )}
               </label>
             )}
           </div>
