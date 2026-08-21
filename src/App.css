@@ -75,7 +75,7 @@ strong {
 
 .filter-row.compact {
   display: flex;
-  gap: 10px;
+  gap: 24px;
 }
 
 .filter-row.compact select,
