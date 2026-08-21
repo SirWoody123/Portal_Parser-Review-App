@@ -217,6 +217,18 @@ function computeHealth(edited) {
     { label: 'Link', ok: !isBlankish(edited.link) },
     { label: 'Banner image', ok: !isBlankish(edited.bannerPic) }
   ]
+
+  if (edited.opportunityType === 'Event') {
+    checks.push({ label: 'Event date', ok: !isBlankish(edited.eventDate) })
+    checks.push({ label: 'Event start time', ok: !isBlankish(edited.eventStartTime) })
+  } else if (edited.opportunityType === 'Course') {
+    checks.push({ label: 'Length of course', ok: !isBlankish(edited.lengthOfCourse) })
+    checks.push({ label: 'Paid or free', ok: !isBlankish(edited.paidOrFreeCourses) })
+  } else if (edited.opportunityType === 'Apprenticeship') {
+    checks.push({ label: 'Length of apprenticeship', ok: !isBlankish(edited.lengthOfApprenticeship) })
+    checks.push({ label: 'Level of apprenticeship', ok: !isBlankish(edited.levelOfApprenticeship) })
+  }
+
   const passed = checks.filter(c => c.ok).length
   const percent = Math.round((passed / checks.length) * 100)
   const missing = checks.filter(c => !c.ok).map(c => c.label)
@@ -336,9 +348,15 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
   useEffect(() => {
     if (activeSection !== 'Audience location') return
     const trimmed = (edited.location || '').trim()
-    if (trimmed && locationCheck.checkedValue !== trimmed) checkLocation(trimmed)
+    if (!trimmed) {
+      setLocationCheck({ status: 'idle', formattedAddress: null, checkedValue: null })
+      return
+    }
+    if (locationCheck.checkedValue === trimmed) return
+    const timer = setTimeout(() => checkLocation(trimmed), 600)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection])
+  }, [activeSection, edited.location])
 
   const updateDemographic = (group, value, checked) => {
     const current = edited.demographic?.[group] || []
@@ -526,7 +544,6 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                 <input
                   value={edited.location || ''}
                   onChange={e => changeField('location', e.target.value)}
-                  onBlur={e => checkLocation(e.target.value)}
                 />
                 {edited.location && locationCheck.checkedValue === edited.location.trim() && (
                   <span className={`field-help location-check location-check-${locationCheck.status}`}>
