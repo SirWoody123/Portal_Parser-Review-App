@@ -110,23 +110,60 @@ export function addMonths(date, amount) {
 // to still have room before we start pushing opportunities further out.
 export const DAILY_SCHEDULE_TARGET = 20
 
-export function buildScheduleCounts(rows) {
-  return rows.reduce((acc, opp) => {
-    if ((opp.status || '').toLowerCase() !== 'scheduled') return acc
-    if (!opp.schedulePost) return acc
-    acc[opp.schedulePost] = (acc[opp.schedulePost] || 0) + 1
-    return acc
-  }, {})
+// Default publish time for a scheduled opportunity once it's 100% complete — a copywriter can
+// still change it per-opportunity. Mirrored server-side in api-server.cjs (no shared package
+// between the two repos, kept in sync manually like every other date/time constant here).
+export const DEFAULT_SCHEDULE_TIME = '07:30'
+
+// Buckets a publishLog entry to the day it belongs on: its scheduled day if it had one, else
+// the London-local calendar date it actually went out (a manual, unscheduled publish still
+// needs a day to render on).
+export function publishedDayKey(entry) {
+  if (entry.schedulePost) return entry.schedulePost
+  if (!entry.publishedAt) return null
+  const dt = new Date(entry.publishedAt)
+  if (Number.isNaN(dt.getTime())) return null
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(dt)
+  const get = type => parts.find(p => p.type === type).value
+  return `${get('year')}-${get('month')}-${get('day')}`
 }
 
-export function densityFor(count) {
-  if (count >= 30) return 'high'
-  if (count >= DAILY_SCHEDULE_TARGET) return 'mid'
+// Per-day { scheduled, sent, total } — total (not just pending) drives density, so a day that's
+// already sent its opportunities still reads as full rather than resetting to looking empty.
+export function buildScheduleCounts(rows, publishedEntries = []) {
+  const counts = {}
+  const bucket = key => counts[key] || (counts[key] = { scheduled: 0, sent: 0, total: 0 })
+
+  rows.forEach(opp => {
+    if ((opp.status || '').toLowerCase() !== 'scheduled') return
+    if (!opp.schedulePost) return
+    const b = bucket(opp.schedulePost)
+    b.scheduled += 1
+    b.total += 1
+  })
+
+  publishedEntries.forEach(entry => {
+    const key = publishedDayKey(entry)
+    if (!key) return
+    const b = bucket(key)
+    b.sent += 1
+    b.total += 1
+  })
+
+  return counts
+}
+
+export function densityFor(bucket) {
+  const total = typeof bucket === 'number' ? bucket : (bucket?.total || 0)
+  if (total >= 30) return 'high'
+  if (total >= DAILY_SCHEDULE_TARGET) return 'mid'
   return 'low'
 }
 
-export function buildCalendarMonths(rows, startMonth, span = 12) {
-  const counts = buildScheduleCounts(rows)
+export function buildCalendarMonths(rows, startMonth, span = 12, publishedEntries = []) {
+  const counts = buildScheduleCounts(rows, publishedEntries)
   const months = []
 
   for (let index = 0; index < span; index += 1) {
@@ -142,12 +179,13 @@ export function buildCalendarMonths(rows, startMonth, span = 12) {
     for (let day = 1; day <= end.getDate(); day += 1) {
       const dt = new Date(base.getFullYear(), base.getMonth(), day)
       const key = toISODate(dt)
-      const count = counts[key] || 0
+      const bucket = counts[key] || { scheduled: 0, sent: 0, total: 0 }
       cells.push({
         key,
         day,
-        count,
-        density: densityFor(count),
+        count: bucket.scheduled,
+        sentCount: bucket.sent,
+        density: densityFor(bucket),
         empty: false
       })
     }

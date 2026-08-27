@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import OpportunityList from './components/OpportunityList'
 import ReviewDetailPanel from './components/ReviewDetailPanel'
+import ScheduleDayPanel from './components/ScheduleDayPanel'
 import {
   toISODate,
   todayDate,
@@ -8,15 +9,17 @@ import {
   monthStartDate,
   addMonths,
   DAILY_SCHEDULE_TARGET,
+  DEFAULT_SCHEDULE_TIME,
   buildScheduleCounts,
   buildCalendarMonths,
+  publishedDayKey,
   combineLondonDateAndTime
 } from './calendarUtils'
+import { computeHealth } from './opportunityHealth'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-const ITEMS_PER_BATCH = 8
-const PAGES = ['Scouted', 'Published', 'Schedule', 'Log', 'Errors']
+const PAGES = ['Scouted', 'Schedule']
 // The admin portal actually lives at the .co domain, not .com (.com is a different site — it
 // serves the marketing homepage fine but 404s on every /content/* route, including this one).
 const REAL_PORTAL_BASE_URL = 'https://meet-eric.co'
@@ -122,9 +125,9 @@ async function saveScheduledMap(map) {
   }
 }
 
-function computeSuggestedScheduleDate(opportunity, allRows) {
+function computeSuggestedScheduleDate(opportunity, allRows, publishedEntries = []) {
   const today = todayDate()
-  const counts = buildScheduleCounts(allRows)
+  const counts = buildScheduleCounts(allRows, publishedEntries)
   const rule = scheduleRule(opportunity.applicationDeadline)
 
   if (rule.kind === 'today-only') {
@@ -134,8 +137,8 @@ function computeSuggestedScheduleDate(opportunity, allRows) {
   if (rule.kind === 'today-or-tomorrow') {
     const dayA = rule.minDate
     const dayB = rule.maxDate
-    const scoreA = counts[dayA] || 0
-    const scoreB = counts[dayB] || 0
+    const scoreA = counts[dayA]?.total || 0
+    const scoreB = counts[dayB]?.total || 0
     return scoreA <= scoreB ? dayA : dayB
   }
 
@@ -148,14 +151,15 @@ function computeSuggestedScheduleDate(opportunity, allRows) {
   // Fill near-term days up to the daily target before spreading further out — a distant
   // deadline shouldn't mean the next week goes unscheduled just because some day months away
   // happens to be emptier. Only once every day in range is already at/above target do we fall
-  // back to picking whichever day is least loaded.
+  // back to picking whichever day is least loaded. Counts total (scheduled + already sent) so
+  // this doesn't happily pile more onto a day that's already published a full day's worth.
   let cursor = new Date(start)
   let bestDate = toISODate(start)
   let bestScore = Number.POSITIVE_INFINITY
 
   while (cursor <= end) {
     const key = toISODate(cursor)
-    const load = counts[key] || 0
+    const load = counts[key]?.total || 0
     if (load < DAILY_SCHEDULE_TARGET) {
       return key
     }
@@ -279,6 +283,7 @@ function buildPublishPayload(opp) {
     // transformData() reads description, not draftedContent — the copywriter's edited text lives in draftedContent.
     description: opp.draftedContent || opp.description || '',
     schedulePost: opp.schedulePost || '',
+    scheduleTime: opp.scheduleTime || '',
     remote: toBool(opp.remote),
     ukWide: toBool(opp.ukWide),
     // Live-sampled a confirmed-searchable real opportunity (one the user manually resaved
@@ -335,12 +340,10 @@ function App() {
   const [errorLog, setErrorLog] = useState([])
   const [toast, setToast] = useState(null)
   const [publishLog, setPublishLog] = useState([])
-  const [publishLogLoading, setPublishLogLoading] = useState(false)
   const [editing, setEditing] = useState(null)
   const [page, setPage] = useState('Scouted')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH)
   const [calendarStart, setCalendarStart] = useState(() => {
     const now = todayDate()
     return toISODate(new Date(now.getFullYear(), now.getMonth(), 1))
@@ -363,17 +366,22 @@ function App() {
     return () => clearTimeout(timer)
   }, [toast])
 
+  // Fetched on mount now, not gated to a Log tab — the Schedule tab needs it for every day's
+  // "sent" section and density, not just a dedicated history page. limit=1000 covers a full
+  // 12-month calendar view; the default 200 was only ever enough for a short recent list.
+  const fetchPublishLog = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/publish-log?limit=1000`)
+      const data = res.ok ? await res.json() : { entries: [] }
+      setPublishLog(data.entries || [])
+    } catch {
+      setPublishLog([])
+    }
+  }
+
   useEffect(() => {
-    if (page !== 'Log') return
-    let cancelled = false
-    setPublishLogLoading(true)
-    fetch(`${API_BASE}/publish-log`)
-      .then(res => res.ok ? res.json() : { entries: [] })
-      .then(data => { if (!cancelled) setPublishLog(data.entries || []) })
-      .catch(() => { if (!cancelled) setPublishLog([]) })
-      .finally(() => { if (!cancelled) setPublishLogLoading(false) })
-    return () => { cancelled = true }
-  }, [page])
+    fetchPublishLog()
+  }, [])
 
   useEffect(() => {
     fetchOpportunities()
@@ -389,7 +397,12 @@ function App() {
       const scheduledMap = await loadScheduledMap()
       const hydrated = rows.map(row => {
         const localScheduled = scheduledMap[row.rowIndex]
-        return localScheduled ? { ...row, ...localScheduled } : row
+        if (!localScheduled) return row
+        // errorNotes is written directly to the sheet by the scheduler, independent of
+        // anything the review app does — a stale cached copy from whenever this schedule
+        // entry was last saved would otherwise silently hide a fresh scheduler error (or a
+        // fresh error clearing) behind whatever errorNotes looked like back then.
+        return { ...row, ...localScheduled, errorNotes: row.errorNotes || '' }
       })
       setOpportunities(hydrated)
     } catch (err) {
@@ -429,6 +442,7 @@ function App() {
       showToast(data.alreadyPublished
         ? `"${payload.title || 'Opportunity'}" was already sent to the real portal.`
         : `"${payload.title || 'Opportunity'}" was sent to the real portal.`)
+      fetchPublishLog()
       return { ok: true }
     } catch (err) {
       pushError(err.message, rowIndex)
@@ -449,7 +463,14 @@ function App() {
       const next = prev.map(opp => {
         if (opp.rowIndex !== rowIndex) return opp
         const merged = { ...opp, ...updatedFields }
-        if (merged.schedulePost) merged.status = 'scheduled'
+        if (merged.schedulePost) {
+          merged.status = 'scheduled'
+          // Same 100%-complete-gets-a-default-time rule as the editor — covers a save that
+          // never opened ReviewDetailPanel (e.g. a future bulk-schedule action).
+          if (!merged.scheduleTime && computeHealth(merged).percent === 100) {
+            merged.scheduleTime = DEFAULT_SCHEDULE_TIME
+          }
+        }
         return merged
       })
 
@@ -521,10 +542,11 @@ function App() {
     ...new Set(opportunities.map(o => o.opportunityType).filter(Boolean))
   ]
 
+  // Only Scouted uses this filtering/pagination path now — Schedule has its own dedicated data
+  // flow (scheduledByDate/selectedDayOpps + publishLog), since a calendar day view was never a
+  // simple filtered list to begin with.
   const pageFiltered = opportunities.filter(opp => {
     const status = (opp.status || opp.originalStatus || '').toLowerCase()
-    if (page === 'Published') return status.includes('published')
-    if (page === 'Schedule') return status.includes('schedule') || status.includes('scheduled')
     return !status || status.includes('scouted') || status.includes('review') || status.includes('ready')
   })
 
@@ -532,26 +554,6 @@ function App() {
     const matchesType = typeFilter === 'all' || opp.opportunityType === typeFilter
     return matchesType && searchMatch(opp, search)
   })
-
-  // Queue rows disappear from `opportunities` the moment they publish (Status becomes "Drafted"
-  // in the sheet, which /queue-review never returns) — so the Published page can't be sourced
-  // from `opportunities` like the pages above. publishLog is already ordered newest-first, so
-  // deduping by rowIndex (keeping the first occurrence) gives the latest publish per opportunity.
-  const publishedOpportunities = useMemo(() => {
-    const seen = new Set()
-    return publishLog.filter(entry => {
-      if (seen.has(entry.rowIndex)) return false
-      seen.add(entry.rowIndex)
-      return true
-    })
-  }, [publishLog])
-
-  const publishedFiltered = publishedOpportunities.filter(entry => {
-    const matchesType = typeFilter === 'all' || entry.opportunityType === typeFilter
-    return matchesType && searchMatch(entry, search)
-  })
-
-  const visible = filtered.slice(0, visibleCount)
 
   const scoutedGroups = useMemo(() => {
     if (page !== 'Scouted') return null
@@ -562,20 +564,47 @@ function App() {
     return groups
   }, [page, filtered])
 
+  // Most-recent client-side error per row, keyed for O(1) lookup when rendering a card —
+  // errorLog is newest-first (pushError prepends), so the first match per rowIndex wins.
+  const clientErrorsByRow = useMemo(() => {
+    const map = {}
+    errorLog.forEach(entry => {
+      if (entry.rowIndex && !(entry.rowIndex in map)) map[entry.rowIndex] = entry.message
+    })
+    return map
+  }, [errorLog])
+
+  const withClientError = opp => ({ ...opp, errorMessage: clientErrorsByRow[opp.rowIndex] })
+
   const calendarMonths = useMemo(() => {
     const start = parseDateOnly(calendarStart) || monthStartDate(todayDate())
-    return buildCalendarMonths(opportunities, monthStartDate(start), 12)
-  }, [opportunities, calendarStart])
+    return buildCalendarMonths(opportunities, monthStartDate(start), 12, publishLog)
+  }, [opportunities, calendarStart, publishLog])
 
   const scheduledByDate = useMemo(
     () => opportunities.filter(opp => (opp.status || '').toLowerCase() === 'scheduled' && opp.schedulePost),
     [opportunities]
   )
 
+  // Which scheduled days have at least one item with an error — drives the calendar's red dot,
+  // separate from the count/density (an errored item is still "waiting", just stuck).
+  const daysWithErrors = useMemo(() => {
+    const set = new Set()
+    scheduledByDate.forEach(opp => {
+      if (opp.errorNotes || clientErrorsByRow[opp.rowIndex]) set.add(opp.schedulePost)
+    })
+    return set
+  }, [scheduledByDate, clientErrorsByRow])
+
   const selectedDayOpps = useMemo(() => {
     if (!selectedCalendarDate) return []
     return scheduledByDate.filter(opp => opp.schedulePost === selectedCalendarDate)
   }, [scheduledByDate, selectedCalendarDate])
+
+  const selectedDaySentEntries = useMemo(() => {
+    if (!selectedCalendarDate) return []
+    return publishLog.filter(entry => publishedDayKey(entry) === selectedCalendarDate)
+  }, [publishLog, selectedCalendarDate])
 
   const jumpCalendar = months => {
     const start = parseDateOnly(calendarStart) || monthStartDate(todayDate())
@@ -584,15 +613,9 @@ function App() {
   const editingSuggestion = useMemo(() => {
     if (!editing) return ''
     if (editing.schedulePost) return editing.schedulePost
-    return computeSuggestedScheduleDate(editing, opportunities)
-  }, [editing, opportunities])
+    return computeSuggestedScheduleDate(editing, opportunities, publishLog)
+  }, [editing, opportunities, publishLog])
   const editingRule = useMemo(() => scheduleRule(editing?.applicationDeadline), [editing])
-
-  const hasMore = filtered.length > visible.length
-
-  useEffect(() => {
-    setVisibleCount(ITEMS_PER_BATCH)
-  }, [search, typeFilter, page])
 
   return (
     <div className="portal-shell">
@@ -607,14 +630,11 @@ function App() {
                   onClick={() => setPage(label)}
                 >
                   {label}
-                  {label === 'Errors' && errorLog.length > 0 && (
-                    <span className="page-tab-badge">{errorLog.length}</span>
-                  )}
                 </button>
               ))}
             </div>
 
-            {page !== 'Log' && page !== 'Errors' && (
+            {page === 'Scouted' && (
               <div className="filter-row compact">
                 <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by type">
                   {types.map(type => (
@@ -634,138 +654,49 @@ function App() {
             )}
           </header>
 
-          {page === 'Log' ? (
-            <div className="queue-count">{publishLog.length} sent to the real portal</div>
-          ) : page === 'Errors' ? (
-            <div className="queue-count">{errorLog.length} error{errorLog.length === 1 ? '' : 's'}</div>
-          ) : page === 'Published' ? (
-            <div className="queue-count">{publishedFiltered.length} in published</div>
+          {page === 'Scouted' ? (
+            <div className="queue-count">{filtered.length} in scouted</div>
           ) : (
-            <div className="queue-count">{filtered.length} in {page.toLowerCase()}</div>
+            <div className="queue-count">{scheduledByDate.length} waiting to send</div>
           )}
 
-          {errorLog.length > 0 && page !== 'Errors' && (
+          {errorLog.length > 0 && (
             <div className="error dismissible">
               <span>{errorLog[0].message}</span>
               <button className="dismiss-error" onClick={() => dismissError(errorLog[0].id)} aria-label="Dismiss">×</button>
             </div>
           )}
 
-          {page === 'Log' ? (
-            publishLogLoading ? (
-              <div className="loading spinner-wrap" role="status" aria-live="polite"><span className="spinner" /></div>
-            ) : publishLog.length === 0 ? (
-              <div className="empty">Nothing has been sent to the real portal yet.</div>
-            ) : (
-              <div className="publish-log-list">
-                {publishLog.map(entry => (
-                  <div key={entry.id} className="publish-log-row">
-                    <div>
-                      <div className="publish-log-title">{entry.title || 'Untitled'}</div>
-                      <div className="publish-log-meta">
-                        {entry.opportunityType || 'Opportunity'} · {new Date(entry.publishedAt).toLocaleString('en-GB')} · {entry.via === 'scheduler' ? 'auto (scheduled)' : 'manual'}
-                      </div>
-                    </div>
-                    <a href={buildRealPortalEditUrl(entry) || REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer" className="publish-log-link">Review on real portal →</a>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : page === 'Published' ? (
-            publishedFiltered.length === 0 ? (
-              <div className="empty">Nothing published yet.</div>
-            ) : (
-              <div className="publish-log-list">
-                {publishedFiltered.map(entry => (
-                  <div key={entry.rowIndex} className="publish-log-row">
-                    <div>
-                      <div className="publish-log-title">{entry.title || 'Untitled'}</div>
-                      <div className="publish-log-meta">
-                        {entry.opportunityType || 'Opportunity'} · Published {new Date(entry.publishedAt).toLocaleString('en-GB')}
-                      </div>
-                    </div>
-                    <a href={buildRealPortalEditUrl(entry) || REAL_PORTAL_CONTENT_URL} target="_blank" rel="noreferrer" className="publish-log-link">Review on real portal →</a>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : page === 'Errors' ? (
-            errorLog.length === 0 ? (
-              <div className="empty">No errors — nice.</div>
-            ) : (
-              <div className="publish-log-list">
-                {errorLog.map(entry => {
-                  const relatedOpp = entry.rowIndex ? opportunities.find(o => o.rowIndex === entry.rowIndex) : null
-                  return (
-                    <div key={entry.id} className="publish-log-row">
-                      <div>
-                        <div className="publish-log-title">{entry.message}</div>
-                        <div className="publish-log-meta">{new Date(entry.timestamp).toLocaleString('en-GB')}</div>
-                      </div>
-                      <div className="error-row-actions">
-                        {relatedOpp ? (
-                          <button className="publish-log-link as-button" onClick={() => setEditing(relatedOpp)}>View opportunity →</button>
-                        ) : entry.rowIndex ? (
-                          <span className="field-help">No longer available</span>
-                        ) : null}
-                        <button className="dismiss-error" onClick={() => dismissError(entry.id)} aria-label="Dismiss">×</button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          ) : loading ? (
+          {loading ? (
             <div className="loading spinner-wrap" role="status" aria-live="polite">
               <span className="spinner" />
             </div>
-          ) : page === 'Schedule' ? null : filtered.length === 0 ? (
-            <div className="empty">No opportunities in {page}.</div>
           ) : page === 'Scouted' ? (
-            <>
-              {URGENCY_SECTIONS.map(section => {
-                const items = scoutedGroups[section.key]
-                if (items.length === 0) return null
-                return (
-                  <section key={section.key} className="urgency-section">
-                    <h3 className={`urgency-heading urgency-${section.key}`}>
-                      {section.label} <span className="urgency-count">({items.length})</span>
-                    </h3>
-                    <OpportunityList
-                      opportunities={items}
-                      onEdit={opp => setEditing(opp)}
-                      onApprove={opp => handlePublish(opp.rowIndex, opp)}
-                      onDelete={handleDelete}
-                      primaryLabel="Approve"
-                    />
-                  </section>
-                )
-              })}
-            </>
-          ) : (
-            <>
-              <OpportunityList
-                opportunities={visible}
-                onEdit={opp => setEditing(opp)}
-                onApprove={opp => {
-                  if (page === 'Schedule') {
-                    publishScheduledNow(opp)
-                  } else {
-                    handlePublish(opp.rowIndex, opp)
-                  }
-                }}
-                onDelete={handleDelete}
-                primaryLabel={page === 'Schedule' ? 'Publish now' : 'Approve'}
-              />
-              {hasMore && (
-                <div className="show-more-row">
-                  <button className="show-more" onClick={() => setVisibleCount(v => v + ITEMS_PER_BATCH)}>
-                    Show more
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+            filtered.length === 0 ? (
+              <div className="empty">No opportunities in scouted.</div>
+            ) : (
+              <>
+                {URGENCY_SECTIONS.map(section => {
+                  const items = scoutedGroups[section.key]
+                  if (items.length === 0) return null
+                  return (
+                    <section key={section.key} className="urgency-section">
+                      <h3 className={`urgency-heading urgency-${section.key}`}>
+                        {section.label} <span className="urgency-count">({items.length})</span>
+                      </h3>
+                      <OpportunityList
+                        opportunities={items.map(withClientError)}
+                        onEdit={opp => setEditing(opp)}
+                        onApprove={opp => handlePublish(opp.rowIndex, opp)}
+                        onDelete={handleDelete}
+                        primaryLabel="Approve"
+                      />
+                    </section>
+                  )
+                })}
+              </>
+            )
+          ) : null}
 
           {page === 'Schedule' && (
             <section className="schedule-calendar">
@@ -791,8 +722,10 @@ function App() {
                             className={`calendar-cell ${cell.density} ${selectedCalendarDate === cell.key ? 'selected' : ''}`}
                             onClick={() => setSelectedCalendarDate(cell.key)}
                           >
+                            {daysWithErrors.has(cell.key) && <span className="calendar-error-dot" aria-label="Has an error" />}
                             <span className="calendar-day">{cell.day}</span>
                             <span className="calendar-count">{cell.count}</span>
+                            {cell.sentCount > 0 && <span className="calendar-sent-count">✓ {cell.sentCount}</span>}
                           </button>
                         )
                       )}
@@ -805,37 +738,22 @@ function App() {
                 <span><i className="dot low" /> below 20</span>
                 <span><i className="dot mid" /> 20 to 29</span>
                 <span><i className="dot high" /> 30 and above</span>
+                <span><i className="dot error" /> has an error</span>
               </div>
+
+              <ScheduleDayPanel
+                selectedDate={selectedCalendarDate}
+                waitingOpps={selectedDayOpps.map(withClientError)}
+                sentEntries={selectedDaySentEntries}
+                onEdit={opp => setEditing(opp)}
+                onApprove={opp => publishScheduledNow(opp)}
+                onDelete={handleDelete}
+                getRealPortalUrl={buildRealPortalEditUrl}
+              />
             </section>
           )}
         </section>
       </main>
-
-      {selectedCalendarDate && (
-        <div className="day-popup-overlay" role="dialog" aria-modal="true" aria-label="Scheduled opportunities" onClick={() => setSelectedCalendarDate('')}>
-          <div className="day-popup-surface" onClick={e => e.stopPropagation()}>
-            <button className="close-modal" onClick={() => setSelectedCalendarDate('')} aria-label="Close">×</button>
-            <div className="day-schedule-title">
-              Scheduled for {selectedCalendarDate} ({selectedDayOpps.length})
-            </div>
-            {selectedDayOpps.length === 0 ? (
-              <div className="empty">No opportunities scheduled on this day.</div>
-            ) : (
-              <div className="day-schedule-list">
-                {selectedDayOpps.map(opp => (
-                  <article key={`day-${opp.rowIndex}`} className="day-schedule-item">
-                    <div>
-                      <div className="day-item-title">{opp.title || 'Untitled opportunity'}</div>
-                      <div className="day-item-meta">{opp.opportunityType || 'Opportunity'} • {opp.location || 'TBC'}</div>
-                    </div>
-                    <button className="mini edit" onClick={() => { setEditing(opp); setSelectedCalendarDate('') }}>Edit</button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {editing && (
         <ReviewDetailPanel

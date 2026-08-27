@@ -1,4 +1,5 @@
 import { parseDateOnly } from '../calendarUtils'
+import { computeHealth } from '../opportunityHealth'
 
 function formatDate(raw) {
   if (!raw) return 'No deadline'
@@ -20,10 +21,21 @@ function companyName(opportunity) {
   return opportunity.company || opportunity.companyName || opportunity.organisation || 'ERIC Recommends'
 }
 
-export default function OpportunityCard({ opportunity, onEdit, onApprove, onDelete, primaryLabel }) {
-  const isScheduled = (opportunity.status || '').toLowerCase().includes('schedule')
+// Derives the state from an opportunity's own status when the caller doesn't already know it
+// (e.g. the Scouted list, where every card is either a draft or scheduled) — the Schedule day
+// panel passes `state="sent"` explicitly instead, since a sent card is built from a publishLog
+// entry rather than a live opportunity.
+function deriveState(opportunity) {
+  return (opportunity.status || '').toLowerCase().includes('schedule') ? 'scheduled' : 'draft'
+}
+
+export default function OpportunityCard({ opportunity, onEdit, onApprove, onDelete, primaryLabel, state, realPortalUrl }) {
+  const cardState = state || deriveState(opportunity)
+  const health = cardState !== 'sent' ? computeHealth(opportunity) : null
+  const errorMessage = opportunity.errorNotes || opportunity.errorMessage || ''
+
   return (
-    <article className="card review-card">
+    <article className={`card review-card${cardState === 'sent' ? ' is-sent' : ''}`}>
       <div className="card-image" role="presentation">
         <div className="overlay-row">
           <div className="left-icons" aria-hidden="true">
@@ -41,10 +53,21 @@ export default function OpportunityCard({ opportunity, onEdit, onApprove, onDele
 
         <div className="title-row">
           <p className="card-category">{opportunity.opportunityType || 'Opportunity'}</p>
-          <span className="review-state">{isScheduled ? `Scheduled: ${opportunity.schedulePost || 'TBC'}` : 'In Review'}</span>
+          {cardState === 'sent' ? (
+            <span className="review-state state-sent">
+              ✓ Sent{opportunity.schedulePost ? ` — ${opportunity.schedulePost}${opportunity.scheduleTime ? `, ${opportunity.scheduleTime}` : ''}` : ''}
+            </span>
+          ) : cardState === 'scheduled' ? (
+            <span className="review-state state-scheduled">
+              Scheduled — {opportunity.schedulePost || 'TBC'}{opportunity.scheduleTime ? `, ${opportunity.scheduleTime}` : ''}
+            </span>
+          ) : (
+            <span className="review-state state-draft">In review{health ? ` · ${health.percent}%` : ''}</span>
+          )}
         </div>
 
-        <p className="card-description">{shortText(opportunity.draftedContent)}</p>
+        <p className="card-title">{opportunity.title || 'Untitled'}</p>
+        <p className="card-description">{shortText(opportunity.draftedContent || opportunity.summary)}</p>
 
         <div className="meta-grid">
           <div>
@@ -57,10 +80,20 @@ export default function OpportunityCard({ opportunity, onEdit, onApprove, onDele
           </div>
         </div>
 
+        {errorMessage && <div className="card-error-strip">⚠ {errorMessage}</div>}
+
         <div className="card-actions">
-          <button className="mini edit" onClick={onEdit}>Edit</button>
-          <button className="mini approve" onClick={onApprove}>{primaryLabel || 'Approve'}</button>
-          <button className="icon-action red" aria-label="Delete" title="Delete" onClick={onDelete}>×</button>
+          {cardState === 'sent' ? (
+            realPortalUrl && (
+              <a className="mini approve" href={realPortalUrl} target="_blank" rel="noreferrer">View on real portal →</a>
+            )
+          ) : (
+            <>
+              <button className="mini edit" onClick={onEdit}>Edit</button>
+              <button className="mini approve" onClick={onApprove}>{primaryLabel || 'Approve'}</button>
+              <button className="icon-action red" aria-label="Delete" title="Delete" onClick={onDelete}>×</button>
+            </>
+          )}
         </div>
       </div>
     </article>

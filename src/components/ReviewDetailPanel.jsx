@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import ScheduleDatePicker from './ScheduleDatePicker'
 import ImageBankPicker from './ImageBankPicker'
-import { parseDateOnly, toISODate, normalizeTimeInput } from '../calendarUtils'
+import { parseDateOnly, toISODate, normalizeTimeInput, DEFAULT_SCHEDULE_TIME } from '../calendarUtils'
+import { isBlankish, isDescriptionUsable, computeHealth } from '../opportunityHealth'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
@@ -187,57 +188,6 @@ function selectedTagSummary(edited) {
   ]
 }
 
-// A field counts as "needs review" if it's empty or still carries Claude's own placeholder
-// for "couldn't work this out" — the same signal the publish-time guard in App.jsx uses, just
-// surfaced while editing instead of only at the point of publishing.
-function isBlankish(value) {
-  if (value === undefined || value === null) return true
-  const trimmed = String(value).trim()
-  if (!trimmed) return true
-  return /unclear/i.test(trimmed)
-}
-
-function isDescriptionUsable(value) {
-  if (isBlankish(value)) return false
-  return String(value).trim().length >= 20
-}
-
-// Checklist behind the health bar — each item is worth equal weight. Deliberately limited to
-// fields every opportunity needs regardless of type; type-specific fields (event/course/
-// apprenticeship details) aren't scored to keep this simple and honest rather than exhaustive.
-function computeHealth(edited) {
-  const hasAnyDemographic = Object.values(edited.demographic || {}).some(arr => (arr || []).length > 0)
-  const checks = [
-    { label: 'Title', ok: !isBlankish(edited.title) },
-    { label: 'Description', ok: isDescriptionUsable(edited.draftedContent) },
-    { label: 'Deadline', ok: !isBlankish(edited.applicationDeadline) },
-    { label: 'Industry tags', ok: (edited.industryTags || []).length > 0 },
-    { label: 'Demographics', ok: hasAnyDemographic },
-    { label: 'Location', ok: edited.ukWide || !isBlankish(edited.location) },
-    { label: 'Link', ok: !isBlankish(edited.link) },
-    { label: 'Banner image', ok: !isBlankish(edited.bannerPic) }
-  ]
-
-  if (edited.opportunityType === 'Event') {
-    checks.push({ label: 'Event date', ok: !isBlankish(edited.eventDate) })
-    checks.push({ label: 'Event start time', ok: !isBlankish(edited.eventStartTime) })
-  } else if (edited.opportunityType === 'Course') {
-    checks.push({ label: 'Length of course', ok: !isBlankish(edited.lengthOfCourse) })
-    checks.push({ label: 'Paid or free', ok: !isBlankish(edited.paidOrFreeCourses) })
-  } else if (edited.opportunityType === 'Apprenticeship') {
-    checks.push({ label: 'Length of apprenticeship', ok: !isBlankish(edited.lengthOfApprenticeship) })
-    checks.push({ label: 'Level of apprenticeship', ok: !isBlankish(edited.levelOfApprenticeship) })
-  }
-
-  const passed = checks.filter(c => c.ok).length
-  const percent = Math.round((passed / checks.length) * 100)
-  const missing = checks.filter(c => !c.ok).map(c => c.label)
-  let tone = 'poor'
-  if (percent >= 80) tone = 'good'
-  else if (percent >= 50) tone = 'fair'
-  return { percent, missing, tone }
-}
-
 function needsReviewClass(value) {
   return isBlankish(value) ? 'needs-review' : ''
 }
@@ -261,12 +211,27 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
       normalized.schedulePost = suggestedScheduleDate
       normalized.status = 'scheduled'
     }
+    // Only defaults the time once — never overrides a copywriter's own choice, and never sets
+    // one for something still incomplete (matches the backend's hard gate: sub-100% health
+    // never auto-publishes, so there's nothing useful a default time would do for it yet).
+    if (normalized.schedulePost && !normalized.scheduleTime && computeHealth(normalized).percent === 100) {
+      normalized.scheduleTime = DEFAULT_SCHEDULE_TIME
+    }
     setEdited(normalized)
     setSaveError('')
   }, [opportunity, suggestedScheduleDate])
 
   const tags = useMemo(() => selectedTagSummary(edited), [edited])
   const health = useMemo(() => computeHealth(edited), [edited])
+
+  // Applies the same 100%-defaulting rule whenever a save/edit newly reaches 100% health with
+  // a schedule date already set but no time yet chosen — not just on initial load.
+  useEffect(() => {
+    if (edited.schedulePost && !edited.scheduleTime && health.percent === 100) {
+      setEdited(prev => ({ ...prev, scheduleTime: DEFAULT_SCHEDULE_TIME }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edited.schedulePost, health.percent])
 
   const changeField = (field, value) => {
     setEdited(prev => ({ ...prev, [field]: value }))
@@ -786,7 +751,9 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
 
             <div className="rail-card">
               <p><strong>Drafted by AI on:</strong> {edited.draftedDate || 'n/a'}</p>
-              <p><strong>Status:</strong> {edited.schedulePost ? 'Scheduled' : 'In review'}</p>
+              <p><strong>Status:</strong> {edited.schedulePost
+                ? `Scheduled — ${edited.schedulePost}${edited.scheduleTime ? `, ${edited.scheduleTime}` : ''}`
+                : 'In review'}</p>
             </div>
 
             <div className="rail-card">
@@ -801,6 +768,22 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                 />
               </label>
               <span className="field-help">{scheduleRuleInfo?.note || 'This app will publish it to the real portal on this date — leave blank to publish manually instead.'}</span>
+
+              {edited.schedulePost && (
+                <label className="schedule-time-label">
+                  At
+                  <input
+                    type="time"
+                    value={normalizeTimeInput(edited.scheduleTime) || DEFAULT_SCHEDULE_TIME}
+                    onChange={e => changeField('scheduleTime', e.target.value)}
+                  />
+                  <span className="field-help">
+                    {health.percent === 100
+                      ? 'Defaults to 07:30 once complete — change it if you want a different time.'
+                      : "Won't actually send until this is 100% complete, whatever time is set."}
+                  </span>
+                </label>
+              )}
             </div>
           </aside>
         </div>
