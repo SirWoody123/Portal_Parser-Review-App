@@ -6,6 +6,17 @@ import { isBlankish, isDescriptionUsable, computeHealth } from '../opportunityHe
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
+// Mirrors appendUtmSource() in api-server.cjs — must stay in sync, no shared package between
+// the two repos. The actual tag only gets added server-side at publish time (this field stays
+// the raw link the whole time it's being edited), but Phoebe wanted to see what it'll actually
+// become before it goes out, not just discover it after the fact.
+function previewWithUtmSource(link) {
+  if (!link) return ''
+  if (/[?&]utm_source=/.test(link)) return link
+  const separator = link.includes('?') ? '&' : '?'
+  return `${link}${separator}utm_source=www.meet-eric.com`
+}
+
 const CATEGORIES = [
   'Apprenticeship',
   'Course',
@@ -179,8 +190,13 @@ function toggleTextArray(current, value, maxCount = Infinity) {
   return [...current, value]
 }
 
+// Location isn't a "tag" in the same sense as the others (it lives on its own field, not in
+// any of these arrays), but Phoebe wanted it visible in this at-a-glance summary too, not just
+// tucked away on the Audience location page inside Add Tags.
 function selectedTagSummary(edited) {
+  const locationLabel = edited.ukWide ? 'UK Wide' : (edited.remote ? 'Remote' : edited.location)
   return [
+    ...(locationLabel ? [`📍 ${locationLabel}`] : []),
     ...(edited.industryTags || []),
     ...(edited.keywords || []),
     ...(edited.partnerAffiliation || []),
@@ -721,6 +737,9 @@ export default function ReviewDetailPanel({ opportunity, allOpportunities, onSav
                   </a>
                 )}
               </div>
+              {edited.link && (
+                <span className="field-help">Will be sent as: {previewWithUtmSource(edited.link)}</span>
+              )}
             </label>
 
             <label>
