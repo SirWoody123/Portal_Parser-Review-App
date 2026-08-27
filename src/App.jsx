@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import OpportunityList from './components/OpportunityList'
 import ReviewDetailPanel from './components/ReviewDetailPanel'
 import {
@@ -346,7 +346,6 @@ function App() {
     return toISODate(new Date(now.getFullYear(), now.getMonth(), 1))
   })
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
-  const dueProcessingRef = useRef(false)
 
   const pushError = (message, rowIndex = null) => {
     setErrorLog(prev => [{ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, message, rowIndex, timestamp: new Date().toISOString() }, ...prev])
@@ -417,6 +416,7 @@ function App() {
         body: JSON.stringify({ rowIndex, editedOpportunity: payload })
       })
       if (!res.ok) throw new Error('Failed to publish')
+      const data = await res.json()
       setOpportunities(prev => {
         const next = prev.filter(o => o.rowIndex !== rowIndex)
         if (editing?.rowIndex === rowIndex) {
@@ -424,7 +424,11 @@ function App() {
         }
         return next
       })
-      showToast(`"${payload.title || 'Opportunity'}" was sent to the real portal.`)
+      // The backend's publish-claim guard caught this as a duplicate attempt (e.g. the
+      // scheduler already sent it moments earlier) — nothing new went out, so don't claim it did.
+      showToast(data.alreadyPublished
+        ? `"${payload.title || 'Opportunity'}" was already sent to the real portal.`
+        : `"${payload.title || 'Opportunity'}" was sent to the real portal.`)
       return { ok: true }
     } catch (err) {
       pushError(err.message, rowIndex)
@@ -500,33 +504,17 @@ function App() {
     }
   }
 
+  // Publishing due opportunities is the backend cron's job now, not the browser's — it used to
+  // duplicate here: this effect re-fired on every `opportunities` change (including someone
+  // just editing something in the Schedule tab) with zero coordination with the backend's own
+  // due-check, so a copywriter having the app open right as the cron ticked could publish the
+  // same opportunity twice. The backend is now both claim-protected (won't double-publish
+  // itself) and idempotency-protected (publishOpportunityToPortal refuses a row that's already
+  // been claimed) — this just nudges it to catch up immediately on page load instead of
+  // waiting for the next tick, through that same protected path.
   useEffect(() => {
-    if (dueProcessingRef.current) return
-    const due = opportunities.filter(opp => {
-      if ((opp.status || '').toLowerCase() !== 'scheduled') return false
-      if (!opp.schedulePost) return false
-      const scheduleDt = parseDateOnly(opp.schedulePost)
-      if (!scheduleDt) return false
-      return dayDiff(scheduleDt, todayDate()) <= 0
-    })
-
-    if (due.length === 0) return
-    dueProcessingRef.current = true
-
-    ;(async () => {
-      try {
-        for (const opp of due) {
-          const result = await handlePublish(opp.rowIndex, opp)
-          if (!result.ok) continue
-          const scheduledMap = await loadScheduledMap()
-          delete scheduledMap[opp.rowIndex]
-          await saveScheduledMap(scheduledMap)
-        }
-      } finally {
-        dueProcessingRef.current = false
-      }
-    })()
-  }, [opportunities])
+    fetch(`${API_BASE}/process-due-schedules`, { method: 'POST' }).catch(() => {})
+  }, [])
 
   const types = [
     'all',
