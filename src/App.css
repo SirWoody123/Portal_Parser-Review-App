@@ -1406,8 +1406,11 @@ strong {
 
 .schedule-day-panel {
   margin-top: 24px;
-  border-top: 1px solid #e7e9f0;
-  padding-top: 20px;
+  background: #f7f8fc;
+  border: 1px solid #e7e9f0;
+  border-radius: 12px;
+  padding: 20px;
+  scroll-margin-top: 20px;
 }
 
 .schedule-day-heading {
